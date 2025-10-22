@@ -9,3 +9,22 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+.logo-text {
+    /* Use the custom orange color that matches your logo's glow */
+    color: #ab8af7 !important; 
+    
+    /* Using @apply for utility classes is fine, but ensure you also have custom rules */
+    /* If you want it bigger, change the size here: */
+    font-size: 1.25rem; 
+    font-weight: 600; 
+}
+
+/* Also, ensure your logo image sizing is still defined right below here if it's missing, 
+   as this is a common point of failure for custom CSS.
+*/
+.logo img {
+    height: 20px; 
+    width: auto;
+    margin-right: 10px;
+}
