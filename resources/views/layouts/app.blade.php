@@ -20,9 +20,14 @@
         
         body {
             background-color: #000000;
-            font-family: 'Figtree', sans-serif;
+            font-family: 'Inter', sans-serif;
             color: white;
             min-height: 100vh;
+            padding-top: 114px;
+            margin: 0;
+            display: flex; /* Turn body into a flex container */
+            flex-direction: column; /* Stack children vertically */
+            align-items: center;
         }
         
         .container {
@@ -32,27 +37,30 @@
         }
         
         .auth-container {
-            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
             position: relative;
+            margin: auto;
+            width: 100%;
+            max-width: 100%;
         }
         
         .auth-card {
-            background-color: #2d3748;
+            background-color: #111827;
             border-radius: 20px;
             padding: 40px;
-            box-shadow: 0 0 30px rgba(249, 115, 22, 0.3), 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 20px 4px rgba(255, 255, 255, 0.6);
             width: 100%;
-            max-width: 420px;
-            border: 1px solid #4a5568;
+            max-width: 556px;
+            border: 1px solid #6D6D6D;
+            overflow: auto;
         }
         
         .logo {
-            width: 32px;
-            height: 32px;
+            width: 50px;
+            height: 50px;
             background-color: #f97316;
             border-radius: 8px;
             display: flex;
@@ -70,21 +78,34 @@
         }
         
         .logo-text {
-            color: white;
-            font-size: 20px;
-            font-weight: 600;
+    
+            font-family: 'Georgia', serif; 
+            font-size: 25px; 
+            font-weight: 800; 
+            background-image: linear-gradient(to right,rgb(250, 90, 75) 30%,rgb(251, 192, 90));
+            -webkit-background-clip: text; 
+            background-clip: text; 
+            -webkit-text-fill-color: transparent; 
+            color: transparent; 
         }
         
         .header {
-            position: absolute;
+            position: fixed;
+            z-index: 1000;
+            width: 100%;
+            height: 83px;
+            background-color: #111827;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(131, 131, 131,0.5);
             top: 0;
             left: 0;
-            padding: 24px;
         }
         
         .header-content {
             display: flex;
             align-items: center;
+            padding: 15px;
+            padding-left: 34px;
         }
         
         .main-logo {
@@ -115,17 +136,22 @@
         
         .welcome-title {
             font-size: 32px;
+            font-family: 'Inter', sans-serif;
             font-weight: bold;
-            color: #ff6b35;
             margin-bottom: 12px;
             text-align: center;
+            background-image: linear-gradient(to right,rgb(250, 90, 75) 30%,rgb(251, 192, 90));
+            -webkit-background-clip: text; 
+            background-clip: text; 
+            -webkit-text-fill-color: transparent; 
+            color: transparent; 
         }
         
         .welcome-subtitle {
-            color: #a0aec0;
+            color: #C6C6C6;
             font-size: 18px;
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 15px;
         }
         
         .form-group {
@@ -137,8 +163,8 @@
             padding: 18px 20px;
             border: 1px solid #4a5568;
             border-radius: 12px;
-            background-color: #4a5568;
-            color: white;
+            background-color: #E5E7EB;
+            color: black;
             font-size: 16px;
             transition: all 0.3s ease;
         }
@@ -147,7 +173,7 @@
             outline: none;
             border-color: #ff6b35;
             box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2);
-            background-color: #5a6578;
+            background-color: #E5E7EB;
         }
         
         .form-input::placeholder {
@@ -157,12 +183,13 @@
         .btn-primary {
             width: 100%;
             padding: 18px 20px;
-            background: linear-gradient(to right, #ff6b35, #fbbf24);
+            background: linear-gradient(to right,rgb(255, 68, 50)29%,rgb(255, 184, 61));
             border: none;
             border-radius: 12px;
             color: white;
-            font-size: 16px;
-            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
             cursor: pointer;
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);

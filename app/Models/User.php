@@ -17,10 +17,17 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+
+    protected $primaryKey = 'user_id';
+
+    protected $passwordColumn = 'password_hash';
     protected $fillable = [
-        'name',
+        'username', // Changed from 'name' to 'username'
         'email',
-        'password',
+        'password_hash', // Changed from 'password' to 'password_hash'
+        'role',
+        'badge',
+        'streak',
     ];
 
     /**
@@ -45,4 +52,27 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function proficiencies()
+    {
+        return $this->hasMany(UserProficiency::class, 'user_id', 'user_id');
+    }
+    
+    public function attempts()
+    {
+        return $this->hasMany(Attempt::class, 'user_id', 'user_id');
+    }
+    
+    public function competencies()
+    {
+        return $this->hasMany(ReviewerCompetency::class, 'user_id', 'user_id');
+    }
+
+    public function reviewsGiven()
+    {
+        // User is the 'approved_by' in the Question table
+        return $this->hasMany(Question::class, 'approved_by', 'user_id');
+    }
+
+    
 }

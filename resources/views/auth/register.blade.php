@@ -76,19 +76,20 @@
             </div>
 
             <!-- Separator -->
-            <div class="separator">
+            <!--  <div class="separator">
                 <div class="separator-text">Or Continue with</div>
-            </div>
+            </div> -->
 
             <!-- Social Login Buttons -->
-            <div class="social-buttons">
+            <!-- <div class="social-buttons">
                 <a href="{{ route('auth.github') }}" class="btn-social">
                     Github
                 </a>
                 <a href="{{ route('auth.google') }}" class="btn-social">
                     Google
                 </a>
-            </div>
+            </div> -->
+
 
             <!-- Sign In Link -->
             <div class="auth-link">
