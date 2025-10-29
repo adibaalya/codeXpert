@@ -3,7 +3,18 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\Auth\SocialAuthController;
+use App\Http\Controllers\Auth\SocialLoginController;
+use App\Http\Controllers\HomeController;
+
+Route::middleware('guest')->group(function () {
+    // Redirect to Provider (e.g., /auth/google)
+    Route::get('/auth/{provider}', [SocialLoginController::class, 'redirectToProvider'])->name('auth.google');
+    Route::get('/auth/{provider}', [SocialLoginController::class, 'redirectToProvider'])->name('auth.github');
+
+    // Handle Callback from Provider (e.g., /auth/google/callback)
+    Route::get('/auth/{provider}/callback', [SocialLoginController::class, 'handleProviderCallback'])->name('auth.google.callback');
+    Route::get('/auth/{provider}/callback', [SocialLoginController::class, 'handleProviderCallback'])->name('auth.github.callback');
+});
 
 Route::get('/', function () {
     return redirect('/login');
@@ -27,3 +38,16 @@ Route::get('/auth/google/callback', [SocialAuthController::class, 'handleGoogleC
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware('auth');
+
+// Route to display the personalization form
+Route::get('/personalization', [HomeController::class, 'showPersonalization'])
+    ->middleware(['auth'])
+    ->name('personalization.show');
+
+// Your existing POST route for saving data remains the same
+Route::post('/personalization/save', [PersonalizationController::class, 'save'])
+    ->middleware(['auth'])
+    ->name('personalization.save');
+
+// Your main dashboard route
+Route::get('/dashboard', [HomeController::class, 'index'])->middleware(['auth'])->name('dashboard');

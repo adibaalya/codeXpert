@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -28,6 +29,8 @@ class User extends Authenticatable
         'role',
         'badge',
         'streak',
+        'github_id', // Add this
+        'google_id',
     ];
 
     /**
@@ -53,7 +56,7 @@ class User extends Authenticatable
         ];
     }
 
-    public function proficiencies()
+    public function proficiency(): HasMany
     {
         return $this->hasMany(UserProficiency::class, 'user_id', 'user_id');
     }
