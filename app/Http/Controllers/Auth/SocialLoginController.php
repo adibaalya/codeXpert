@@ -5,10 +5,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
+use App\Models\Learner;
+use App\Models\Reviewer;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Session;
 
 class SocialLoginController extends Controller
 {
@@ -17,6 +19,10 @@ class SocialLoginController extends Controller
      */
     public function redirectToProvider(string $provider)
     {
+        // Store the selected role in session before redirecting to social provider
+        $role = request()->query('role', 'learner');
+        Session::put('social_login_role', $role);
+        
         return Socialite::driver($provider)->redirect();
     }
 
@@ -33,44 +39,98 @@ class SocialLoginController extends Controller
             return redirect('/login')->withErrors(['social_login' => 'Could not authenticate with ' . ucfirst($provider) . '.']);
         }
 
-        // Determine the column name for the social ID (e.g., 'google_id')
-        $socialIdColumn = $provider . '_id';
+        // Get role from session (default to learner if not set)
+        $role = Session::get('social_login_role', 'learner');
+        
+        // Determine the column name for the social ID (e.g., 'google_ID' or 'github_ID')
+        $socialIdColumn = $provider . '_ID';
+        
+        // Get the base username part from the email
+        $emailUsername = explode('@', $socialUser->getEmail())[0];
+        $username = $socialUser->getNickname() ?? $emailUsername;
 
-        // 1. Check if a user exists with this social ID
-        $user = User::where($socialIdColumn, $socialUser->getId())->first();
+        if ($role === 'learner') {
+            // Check if learner exists with this social ID
+            $user = Learner::where($socialIdColumn, $socialUser->getId())->first();
 
-        if ($user) {
-            // User found, log them in
-            Auth::login($user);
-            return redirect('/dashboard');
-        } else {
-            // 2. Check if a user exists with this email (e.g., they registered with email before)
-            $user = User::where('email', $socialUser->getEmail())->first();
+            if ($user) {
+                // User found, log them in
+                Auth::guard('learner')->login($user);
+                return redirect('/learner/dashboard');
+            }
+
+            // Check if learner exists with this email
+            $user = Learner::where('email', $socialUser->getEmail())->first();
 
             if ($user) {
                 // User found by email, link the social ID and log them in
                 $user->update([$socialIdColumn => $socialUser->getId()]);
-                Auth::login($user);
+                Auth::guard('learner')->login($user);
                 return redirect('/dashboard');
-            } else {
-                // 3. New user, create the account
-
-                // Get the base username part from the email
-                $emailUsername = explode('@', $socialUser->getEmail())[0];
-                
-                $newUser = User::create([
-                    'name' => $socialUser->getName() ?? $socialUser->getNickname(),
-                    
-                    // Add the missing username field
-                    'username' => $socialUser->getNickname() ?? $emailUsername, 
-                    
-                    'email' => $socialUser->getEmail(),
-                    $socialIdColumn => $socialUser->getId(),
-                ]);
-
-                Auth::login($newUser);
-                return redirect()->route('personalization.show');
             }
+
+            // Create new learner
+            $user = Learner::create([
+                'username' => $username,
+                'email' => $socialUser->getEmail(),
+                $socialIdColumn => $socialUser->getId(),
+                'password' => bcrypt(uniqid()), // Random password for social login users
+                'registration_date' => now(),
+                'totalPoint' => 0,
+                'streak' => 0,
+            ]);
+
+            Auth::guard('learner')->login($user);
+            // Redirect to customization path for first-time setup
+            return redirect()->route('learner.customization');
+            
+        } else {
+            // Handle reviewer
+            // Check if reviewer exists with this social ID
+            $user = Reviewer::where($socialIdColumn, $socialUser->getId())->first();
+
+            if ($user) {
+                // User found, log them in
+                Auth::guard('reviewer')->login($user);
+                
+                // Check if reviewer needs to take competency test
+                if (!$user->isQualified) {
+                    return redirect()->route('reviewer.competency.choose');
+                }
+                
+                return redirect('/reviewer/dashboard');
+            }
+
+            // Check if reviewer exists with this email
+            $user = Reviewer::where('email', $socialUser->getEmail())->first();
+
+            if ($user) {
+                // User found by email, link the social ID and log them in
+                $user->update([$socialIdColumn => $socialUser->getId()]);
+                Auth::guard('reviewer')->login($user);
+                
+                // Check if reviewer needs to take competency test
+                if (!$user->isQualified) {
+                    return redirect()->route('reviewer.competency.choose');
+                }
+                
+                return redirect('/reviewer/dashboard');
+            }
+
+            // Create new reviewer
+            $user = Reviewer::create([
+                'username' => $username,
+                'email' => $socialUser->getEmail(),
+                $socialIdColumn => $socialUser->getId(),
+                'password' => bcrypt(uniqid()), // Random password for social login users
+                'registrationDate' => now(),
+                'isQualified' => false,
+            ]);
+
+            Auth::guard('reviewer')->login($user);
+            
+            // New reviewers must take competency test
+            return redirect()->route('reviewer.competency.choose');
         }
     }
 }

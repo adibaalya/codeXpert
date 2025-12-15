@@ -40,6 +40,16 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        'learner' => [
+            'driver' => 'session',
+            'provider' => 'learners',
+        ],
+
+        'reviewer' => [
+            'driver' => 'session',
+            'provider' => 'reviewers',
+        ],
     ],
 
     /*
@@ -63,6 +73,16 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', App\Models\User::class),
+        ],
+
+        'learners' => [
+            'driver' => 'eloquent',
+            'model' => env('AUTH_LEARNER_MODEL', App\Models\Learner::class),
+        ],
+
+        'reviewers' => [
+            'driver' => 'eloquent',
+            'model' => env('AUTH_REVIEWER_MODEL', App\Models\Reviewer::class),
         ],
 
         // 'users' => [
