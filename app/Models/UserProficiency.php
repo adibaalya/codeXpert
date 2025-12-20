@@ -15,9 +15,10 @@ class UserProficiency extends Model
         'level',
     ];
 
-    // Composite primary key
-    protected $primaryKey = ['learner_ID', 'language'];
+    // Don't define composite primary key - it causes issues with Eloquent
+    // Instead, we'll use the combination as unique identifiers
     public $incrementing = false;
+    protected $primaryKey = null; // No single primary key
 
     /**
      * Get the learner that owns this proficiency

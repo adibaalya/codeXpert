@@ -7,23 +7,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\Question;
-use Illuminate\Support\Facades\DB;
 
 class QuestionGeneratorController extends Controller
 {
     public function showGeneratePage()
     {
-        // Get the authenticated reviewer
         $reviewer = auth('reviewer')->user();
         
-        // Get distinct languages from questions table
         $languages = Question::select('language')
             ->distinct()
             ->orderBy('language')
             ->pluck('language')
             ->toArray();
 
-        // If no languages in database, provide defaults
         if (empty($languages)) {
             $languages = ['Python', 'JavaScript', 'Java', 'C++', 'C#'];
         }
@@ -33,6 +29,7 @@ class QuestionGeneratorController extends Controller
 
     public function generateQuestion(Request $request)
     {
+        set_time_limit(120);
         $request->validate([
             'prompt' => 'required|string|max:1000',
             'language' => 'required|string',
@@ -45,123 +42,88 @@ class QuestionGeneratorController extends Controller
             if (!$geminiApiKey) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Gemini API key not configured. Please add GEMINI_API_KEY to your .env file.'
+                    'message' => 'Gemini API key not configured.'
                 ], 500);
             }
 
-            // Build the prompt for Gemini
             $systemPrompt = $this->buildPrompt($request->all());
 
-            // Retry logic with exponential backoff
             $maxRetries = 3;
-            $retryDelay = 2; // seconds
+            $retryDelay = 2;
             $lastError = null;
 
             for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 try {
                     if ($attempt > 0) {
-                        // Wait before retrying (exponential backoff)
                         $waitTime = $retryDelay * pow(2, $attempt - 1);
-                        Log::info("Retrying request after {$waitTime} seconds (attempt {$attempt})");
                         sleep($waitTime);
                     }
 
-                    // Call Gemini API with correct model name
                     $response = Http::timeout(60)->withHeaders([
                         'Content-Type' => 'application/json',
                     ])->post("https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={$geminiApiKey}", [
-                        'contents' => [
-                            [
-                                'parts' => [
-                                    ['text' => $systemPrompt]
-                                ]
-                            ]
-                        ],
+                        'contents' => [['parts' => [['text' => $systemPrompt]]]],
                         'generationConfig' => [
                             'temperature' => 0.7,
-                            'maxOutputTokens' => 8192,  // Increased to allow full solution code
+                            'maxOutputTokens' => 8192,
                         ]
                     ]);
 
-                    // Log the response
-                    Log::info('Gemini API Response Status: ' . $response->status());
-
-                    // Handle rate limiting (429)
                     if ($response->status() === 429) {
-                        $lastError = 'Rate limit exceeded. The API is receiving too many requests.';
-                        Log::warning("Rate limit hit on attempt {$attempt}");
-                        
-                        // If this is the last attempt, return a user-friendly error
+                        $lastError = 'Rate limit exceeded.';
                         if ($attempt === $maxRetries - 1) {
                             return response()->json([
                                 'success' => false,
-                                'message' => 'The AI service is currently experiencing high demand. Please try again in a few minutes.',
-                                'error_type' => 'rate_limit'
+                                'message' => 'Service busy. Please try again in a moment.'
                             ], 429);
                         }
-                        continue; // Retry
+                        continue;
                     }
 
                     if ($response->failed()) {
-                        Log::error('Gemini API Error', ['response' => $response->body()]);
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Failed to generate question. API Error: ' . $response->status()
-                        ], 500);
+                        throw new \Exception('API Error: ' . $response->status());
                     }
 
                     $result = $response->json();
                     
-                    // Check if response has the expected structure
                     if (!isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-                        Log::error('Invalid Gemini Response Structure', [
-                            'response' => $result,
-                            'has_candidates' => isset($result['candidates']),
-                            'candidates_count' => isset($result['candidates']) ? count($result['candidates']) : 0
-                        ]);
-                        
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Invalid response from AI service. The response structure was unexpected.'
-                        ], 500);
+                        throw new \Exception('Invalid response structure');
                     }
 
                     $generatedText = $result['candidates'][0]['content']['parts'][0]['text'];
                     
-                    // Parse the generated content
+                    // Parse using the new robust parser
                     $parsedQuestion = $this->parseGeneratedQuestion($generatedText);
+
+                    // Basic validation
+                    if (isset($parsedQuestion['tests']) && is_array($parsedQuestion['tests'])) {
+                        foreach ($parsedQuestion['tests'] as &$test) {
+                            if (isset($test['input']) && (is_array($test['input']) || is_object($test['input']))) {
+                                // Convert Array/Object to String for Display
+                                $test['input'] = json_encode($test['input']);
+                            }
+                            if (isset($test['output']) && (is_array($test['output']) || is_object($test['output']))) {
+                                $test['output'] = json_encode($test['output']);
+                            }
+                        }
+                    }
 
                     return response()->json([
                         'success' => true,
                         'data' => $parsedQuestion
                     ]);
 
-                } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                } catch (\Exception $e) {
                     $lastError = $e->getMessage();
-                    Log::warning("Connection error on attempt {$attempt}: {$lastError}");
-                    if ($attempt === $maxRetries - 1) {
-                        throw $e;
-                    }
-                    continue; // Retry
+                    if ($attempt === $maxRetries - 1) throw $e;
                 }
             }
 
-            // If we exhausted all retries
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to generate question after multiple attempts. Please try again later.',
-                'error' => $lastError
-            ], 500);
-
         } catch (\Exception $e) {
-            Log::error('Question Generation Error', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
+            Log::error('Question Generation Error', ['message' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred: ' . $e->getMessage()
+                'message' => 'Error: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -179,61 +141,66 @@ class QuestionGeneratorController extends Controller
             'language' => 'required|string',
             'difficulty' => 'required|string',
             'topic' => 'required|string',
+            'function_name' => 'nullable|string', // Added validation
         ]);
 
         try {
             $reviewer = auth('reviewer')->user();
 
-            // Prepare constraints as a string
             $constraintsText = '';
             foreach ($request->constraints as $constraint) {
                 $constraintsText .= "- {$constraint}\n";
             }
 
-            // Prepare input test cases as array (proper structure for database)
+            // Prepare input test cases (Key-Value Array Structure)
             $inputData = [];
+            $expectedOutputData = [];
+
             foreach ($request->tests as $index => $test) {
+                // Check if input is a JSON string (from our fix) or an array
+                $inputVal = $test['input'];
+                
+                // If the frontend sends back the string "{\"a\":1}", 
+                // we decode it back to an array so Laravel stores it cleanly as JSON
+                if (is_string($inputVal)) {
+                    $decoded = json_decode($inputVal, true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $inputVal = $decoded;
+                    }
+                }
+
                 $inputData[] = [
                     'test_case' => $index + 1,
-                    'input' => $test['input']
+                    'input' => $inputVal
                 ];
-            }
 
-            // Prepare expected output as array (proper structure for database)
-            $expectedOutputData = [];
-            foreach ($request->tests as $index => $test) {
                 $expectedOutputData[] = [
                     'test_case' => $index + 1,
                     'output' => $test['output']
                 ];
             }
 
-            // Legacy content field for backward compatibility
             $content = "# {$request->title}\n\n";
             $content .= "## Description\n{$request->description}\n\n";
             $content .= "## Problem Statement\n{$request->problemStatement}\n\n";
             $content .= "## Constraints\n" . $constraintsText;
             $content .= "\n## Hints\n{$request->expectedApproach}";
 
-            // Map difficulty to level (handle both formats)
-            $levelMap = [
-                'easy' => 'beginner',
-                'beginner' => 'beginner',
-                'intermediate' => 'intermediate',
-                'hard' => 'advanced',
-                'advanced' => 'advanced'
-            ];
-
+            $levelMap = ['easy' => 'beginner', 'beginner' => 'beginner', 'intermediate' => 'intermediate', 'hard' => 'advanced', 'advanced' => 'advanced'];
             $level = strtolower($request->difficulty);
             $mappedLevel = $levelMap[$level] ?? 'intermediate';
 
+            // Use the parsed function name, or fallback to 'solve'
+            $functionName = $request->input('function_name', 'solve');
+
             $question = Question::create([
                 'title' => $request->title,
-                'content' => $content, // Legacy field
+                'function_name' => $functionName, // Save to new column
+                'content' => $content,
                 'description' => $request->description,
                 'problem_statement' => $request->problemStatement,
                 'constraints' => trim($constraintsText),
-                'expected_output' => $expectedOutputData, // Now stored as array
+                'expected_output' => $expectedOutputData, // Casts to JSON
                 'answersData' => $request->solution,
                 'status' => 'Pending',
                 'reviewer_ID' => $reviewer->reviewer_ID,
@@ -243,7 +210,7 @@ class QuestionGeneratorController extends Controller
                 'questionType' => 'Code_Solution',
                 'chapter' => $request->topic,
                 'hint' => $request->expectedApproach,
-                'input' => $inputData, // Stored as array with proper structure
+                'input' => $inputData, // Casts to JSON
             ]);
 
             return response()->json([
@@ -253,327 +220,108 @@ class QuestionGeneratorController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Save Question Error', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request_data' => $request->all()
-            ]);
-
+            Log::error('Save Question Error', ['message' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to save question: ' . $e->getMessage()
             ], 500);
         }
     }
-
+    
     private function buildPrompt(array $params)
     {
-        $prompt  = "You are an expert programming instructor who creates real-world, single-file coding interview questions.\n\n";
-        $prompt .= "Generate a simple real-world coding question suitable for a technical interview.\n\n";
+        // 1. Domains
+        $domains = [
+            'FinTech (Banking, Fees, Interest)',
+            'Healthcare (Triage, Vitals, Schedules)',
+            'E-commerce (Discounts, Inventory, Cart)',
+            'Gaming (Leaderboards, Scores, Inventory)',
+            'Logistics (Routes, Cargo, Tracking)',
+            'School System (Grades, Attendance, Schedules)'
+        ];
+        $selectedDomain = $domains[array_rand($domains)];
 
-        $prompt .= "Difficulty: {$params['difficulty']}\n";
-        $prompt .= "Language: {$params['language']}\n";
-        $prompt .= "User Request: {$params['prompt']}\n\n";
+        $prompt  = "You are an expert technical interviewer.\n";
+        $prompt .= "Generate 1 coding interview question for {$params['language']} ({$params['difficulty']}).\n";
+        $prompt .= "Context: {$params['prompt']}.\n";
+        $prompt .= "Domain: {$selectedDomain}.\n\n";
 
-        $prompt .= "Use the following structure EXACTLY:\n\n";
+        $prompt .= "STRICT REQUIREMENTS:\n";
+        $prompt .= "1. **Real World Context**: Use the domain above. NO server logs or abstract math.\n";
+        $prompt .= "2. **Concise Writing**: 'description' and 'problem_statement' must be SHORT (max 2 sentences each).\n";
+        $prompt .= "3. **Test Cases**: Generate EXACTLY 3 test cases.\n";
+        $prompt .= "4. **Solution**: You MUST provide the full, working solution code in the 'solution' field.\n";
+        $prompt .= "5. **Hint**: The hint MUST be a numbered list (1., 2., 3.) explaining the steps.\n\n";
 
-        $prompt .= "TITLE:\n";
-        $prompt .= "[Generate a clear, concise, and descriptive title for this coding question. The title should be specific and indicate what the problem is about. Examples: 'Find Maximum Subarray Sum', 'Implement Binary Search Tree', 'Validate Parentheses']\n\n";
-
-        $prompt .= "LANGUAGE:\n";
-        $prompt .= "[Use: {$params['language']}]\n\n";
-
-        $prompt .= "TOPIC:\n";
-        $prompt .= "[Generate ONE specific programming concept/category that best describes this question. Choose from concepts like: Array, String, Loop, Sorting, Searching, Recursion, Dynamic Programming, Hash Table, Stack, Queue, Linked List, Tree, Graph, Greedy Algorithm, Backtracking, Bit Manipulation, Math, Two Pointers, Sliding Window, Divide and Conquer, or other relevant programming concepts. Use Title Case (e.g., 'Hash Table', 'Dynamic Programming')]\n\n";
-
-        $prompt .= "DIFFICULTY:\n{$params['difficulty']}\n\n";
-
-        $prompt .= "DESCRIPTION:\n";
-        $prompt .= "[Write a brief 1-2 sentence overview of the problem and its real-world context]\n\n";
-
-        $prompt .= "PROBLEM_STATEMENT:\n";
-        $prompt .= "[Provide a detailed technical specification of what needs to be implemented. Include the business scenario, what the function/program should do, and any important details.]\n\n";
-
-        $prompt .= "CONSTRAINTS:\n";
-        $prompt .= "- Input parameters:\n";
-        $prompt .= "  [List each parameter]\n";
-        $prompt .= "- Output:\n";
-        $prompt .= "  [Expected output]\n";
-        $prompt .= "- Rules:\n";
-        $prompt .= "  [Validation or rules]\n";
-        $prompt .= "- Edge cases:\n";
-        $prompt .= "  [List at least 2 edge cases]\n\n";
-
-        $prompt .= "HINTS:\n";
-        $prompt .= "1. [Hint 1]\n";
-        $prompt .= "2. [Hint 2]\n";
-        $prompt .= "3. [Hint 3]\n\n";
-
-        $prompt .= "INPUT:\n";
-        $prompt .= "Provide exactly 4 test cases with clear, specific input values.\n";
-        $prompt .= "Test Case 1 (Normal):\n";
-        $prompt .= "Input: [Provide actual input values, be specific]\n\n";
-        $prompt .= "Test Case 2 (Failure/Invalid):\n";
-        $prompt .= "Input: [Provide actual input values, be specific]\n\n";
-        $prompt .= "Test Case 3 (Edge Case):\n";
-        $prompt .= "Input: [Provide actual input values, be specific]\n\n";
-        $prompt .= "Test Case 4 (Complex/Mixed):\n";
-        $prompt .= "Input: [Provide actual input values, be specific]\n\n";
-
-        $prompt .= "EXPECTED_OUTPUT:\n";
-        $prompt .= "Provide the exact expected output for each test case above.\n";
-        $prompt .= "Test Case 1:\n";
-        $prompt .= "Output: [Provide exact output]\n\n";
-        $prompt .= "Test Case 2:\n";
-        $prompt .= "Output: [Provide exact output]\n\n";
-        $prompt .= "Test Case 3:\n";
-        $prompt .= "Output: [Provide exact output]\n\n";
-        $prompt .= "Test Case 4:\n";
-        $prompt .= "Output: [Provide exact output]\n\n";
-
-        $prompt .= "SOLUTION:\n";
-        $prompt .= "[Provide a complete, correct, working solution in {$params['language']}. Must fit inside ONE FILE only. No external libraries unless built-in.]\n\n";
-
-        $prompt .= "IMPORTANT:\n";
-        $prompt .= "• The question must be solvable in ONE FILE only.\n";
-        $prompt .= "• Make the solution clean and easy for students to understand.\n";
-        $prompt .= "• Ensure the question is real-world, practical, and consistent with the topic.\n";
-        $prompt .= "• The TOPIC must be a specific programming concept/data structure, not a general application domain.\n";
-        $prompt .= "• Provide SPECIFIC input values and their corresponding outputs, not placeholders.\n";
+        $prompt .= "Output strictly valid JSON (no markdown). Use this structure:\n";
+        $prompt .= "{\n";
+        $prompt .= "  \"title\": \"Short Business Title\",\n";
+        $prompt .= "  \"function_name\": \"camelCaseFunctionName\",\n";
+        $prompt .= "  \"description\": \"Two hospital wings are merging their patient queues.\",\n";
+        $prompt .= "  \"problem_statement\": \"Implement `mergeLists` to combine two sorted arrays into one.\",\n";
+        $prompt .= "  \"constraints\": [\"Array length <= 100\", \"Sorted input\"],\n";
+        // Enforce full code in the example so the AI mimics it
+        $prompt .= "  \"solution\": \"class Solution { public int[] solve(int[] a, int[] b) { ...full code... } }\",\n";
+        $prompt .= "  \"language\": \"{$params['language']}\",\n";
+        $prompt .= "  \"difficulty\": \"{$params['difficulty']}\",\n";
+        $prompt .= "  \"topic\": \"Arrays\",\n";
+        // Enforce numbered list format
+        $prompt .= "  \"hint\": \"1. Initialize two pointers.\\n2. Compare elements.\\n3. Push smaller element to result.\",\n";
+        $prompt .= "  \"tests\": [\n";
+        $prompt .= "    {\"input\": {\"a\": 1, \"b\": 2}, \"output\": 3},\n";
+        $prompt .= "    {\"input\": {\"a\": 0, \"b\": 0}, \"output\": 0},\n";
+        $prompt .= "    {\"input\": {\"a\": -1, \"b\": 1}, \"output\": 0}\n";
+        $prompt .= "  ]\n";
+        $prompt .= "}";
 
         return $prompt;
     }
 
     private function parseGeneratedQuestion(string $text)
     {
-        // Log the raw response for debugging
-        Log::info('Raw AI Response:', ['text' => $text]);
+        Log::info('Raw AI Response:', ['text' => substr($text, 0, 500) . '...']);
         
-        $question = [
-            'title' => '',
-            'description' => '',
-            'problemStatement' => '',
-            'constraints' => [],
-            'expectedApproach' => '',
-            'tests' => [],
-            'solution' => '',
-            'topic' => ''
+        $cleanText = preg_replace('/^```json\s*/i', '', trim($text));
+        $cleanText = preg_replace('/^```\s*/', '', $cleanText);
+        $cleanText = preg_replace('/```$/', '', $cleanText);
+        
+        $decoded = json_decode($cleanText, true);
+
+        if (is_array($decoded) && isset($decoded[0]) && is_array($decoded[0])) {
+            $decoded = $decoded[0];
+        }
+
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            Log::error('JSON Parse Error', ['error' => json_last_error_msg()]);
+            // Fallback structure
+            return [
+                'title' => 'Generation Failed',
+                'function_name' => 'solve',
+                'description' => 'AI generation failed.',
+                'problemStatement' => 'Please try again.',
+                'constraints' => [],
+                'expectedApproach' => '1. Retry generation.',
+                'tests' => [],
+                'solution' => '// No solution generated',
+                'topic' => 'General'
+            ];
+        }
+
+        return [
+            'title' => $decoded['title'] ?? 'Generated Question',
+            'function_name' => $decoded['function_name'] ?? 'solve',
+            'description' => $decoded['description'] ?? '',
+            'problemStatement' => $decoded['problem_statement'] ?? ($decoded['description'] ?? ''),
+            'constraints' => $decoded['constraints'] ?? [],
+            'expectedApproach' => $decoded['hint'] ?? ($decoded['expectedApproach'] ?? '1. Analyze input.'),
+            'tests' => $decoded['tests'] ?? [],
+            
+            // Check if solution exists, if not, put a placeholder so it doesn't crash
+            'solution' => $decoded['solution'] ?? '// Solution missing from AI response',
+            
+            'topic' => $decoded['topic'] ?? 'General',
+            'language' => $decoded['language'] ?? 'Unknown',
+            'difficulty' => $decoded['difficulty'] ?? 'Beginner'
         ];
-
-        // Extract title directly from the response
-        if (preg_match('/TITLE:\s*(.+?)(?=LANGUAGE:|$)/s', $text, $matches)) {
-            $question['title'] = trim($matches[1]);
-            Log::info('Parsed title:', ['title' => $question['title']]);
-        }
-
-        // Extract language
-        $language = '';
-        if (preg_match('/LANGUAGE:\s*(.+?)(?:\n|$)/s', $text, $matches)) {
-            $language = trim($matches[1]);
-        }
-
-        // Extract topic
-        if (preg_match('/TOPIC:\s*(.+?)(?=DIFFICULTY:|$)/s', $text, $matches)) {
-            $topic = trim($matches[1]);
-            $question['topic'] = $topic;
-            Log::info('Parsed topic:', ['topic' => $question['topic']]);
-        }
-
-        // Extract description (brief overview)
-        if (preg_match('/DESCRIPTION:\s*(.+?)(?=PROBLEM_STATEMENT:|$)/s', $text, $matches)) {
-            $question['description'] = trim($matches[1]);
-            Log::info('Parsed description:', ['description' => $question['description']]);
-        }
-
-        // Extract problem statement (detailed specification)
-        if (preg_match('/PROBLEM_STATEMENT:\s*(.+?)(?=CONSTRAINTS:|$)/s', $text, $matches)) {
-            $question['problemStatement'] = trim($matches[1]);
-            Log::info('Parsed problem statement:', ['length' => strlen($question['problemStatement'])]);
-        }
-
-        // Extract constraints
-        if (preg_match('/CONSTRAINTS:\s*(.+?)(?=HINTS:|$)/s', $text, $matches)) {
-            $constraintsText = trim($matches[1]);
-            $lines = explode("\n", $constraintsText);
-            foreach ($lines as $line) {
-                $line = trim($line);
-                if (!empty($line) && $line !== '-' && !preg_match('/^(Input parameters|Output|Rules|Edge cases):$/i', $line)) {
-                    // Remove leading dash or bullet
-                    $line = preg_replace('/^[-•]\s*/', '', $line);
-                    if (!empty($line)) {
-                        $question['constraints'][] = $line;
-                    }
-                }
-            }
-            Log::info('Parsed constraints:', ['count' => count($question['constraints'])]);
-        }
-
-        // Extract hints (this becomes expected approach)
-        if (preg_match('/HINTS:\s*(.+?)(?=INPUT:|$)/s', $text, $matches)) {
-            $hintsText = trim($matches[1]);
-            $question['expectedApproach'] = $hintsText;
-            Log::info('Parsed hints:', ['length' => strlen($question['expectedApproach'])]);
-        }
-
-        // Extract input test cases - improved parsing with multiple pattern attempts
-        $inputSection = '';
-        if (preg_match('/INPUT:\s*(.+?)(?=EXPECTED_OUTPUT:|$)/s', $text, $matches)) {
-            $inputSection = $matches[1];
-            Log::info('Found INPUT section:', ['length' => strlen($inputSection)]);
-            
-            // Try multiple patterns to match test cases
-            $patterns = [
-                '/Test Case (\d+)[^:]*:\s*Input:\s*(.+?)(?=Test Case \d+|$)/s',
-                '/Test Case (\d+)[^:]*:\s*(.+?)(?=Test Case \d+|$)/s',
-                '/Test (\d+)[^:]*:\s*Input:\s*(.+?)(?=Test \d+|$)/s',
-                '/Test (\d+)[^:]*:\s*(.+?)(?=Test \d+|$)/s',
-            ];
-            
-            $matched = false;
-            foreach ($patterns as $pattern) {
-                if (preg_match_all($pattern, $inputSection, $inputMatches, PREG_SET_ORDER)) {
-                    if (!empty($inputMatches)) {
-                        Log::info('Matched input pattern:', ['pattern' => $pattern, 'count' => count($inputMatches)]);
-                        foreach ($inputMatches as $match) {
-                            $testCaseNum = (int)$match[1];
-                            $inputValue = trim($match[2]);
-                            // Remove "Input:" label if it appears at the start
-                            $inputValue = preg_replace('/^Input:\s*/i', '', $inputValue);
-                            
-                            $question['tests'][$testCaseNum - 1] = [
-                                'input' => trim($inputValue),
-                                'output' => '',
-                                'explanation' => ''
-                            ];
-                        }
-                        $matched = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (!$matched) {
-                Log::warning('No input pattern matched. Input section:', ['section' => substr($inputSection, 0, 500)]);
-            }
-        } else {
-            Log::warning('INPUT section not found in response');
-        }
-
-        // Extract expected output - improved parsing with multiple pattern attempts
-        $outputSection = '';
-        if (preg_match('/EXPECTED_OUTPUT:\s*(.+?)(?=SOLUTION:|$)/s', $text, $matches)) {
-            $outputSection = $matches[1];
-            Log::info('Found EXPECTED_OUTPUT section:', ['length' => strlen($outputSection)]);
-            
-            // Try multiple patterns to match outputs
-            $patterns = [
-                '/Test Case (\d+)[^:]*:\s*Output:\s*(.+?)(?=Test Case \d+|$)/s',
-                '/Test Case (\d+)[^:]*:\s*(.+?)(?=Test Case \d+|$)/s',
-                '/Test (\d+)[^:]*:\s*Output:\s*(.+?)(?=Test \d+|$)/s',
-                '/Test (\d+)[^:]*:\s*(.+?)(?=Test \d+|$)/s',
-            ];
-            
-            $matched = false;
-            foreach ($patterns as $pattern) {
-                if (preg_match_all($pattern, $outputSection, $outputMatches, PREG_SET_ORDER)) {
-                    if (!empty($outputMatches)) {
-                        Log::info('Matched output pattern:', ['pattern' => $pattern, 'count' => count($outputMatches)]);
-                        foreach ($outputMatches as $match) {
-                            $testCaseNum = (int)$match[1];
-                            $outputValue = trim($match[2]);
-                            // Remove "Output:" label if it appears at the start
-                            $outputValue = preg_replace('/^Output:\s*/i', '', $outputValue);
-                            
-                            if (isset($question['tests'][$testCaseNum - 1])) {
-                                $question['tests'][$testCaseNum - 1]['output'] = trim($outputValue);
-                            }
-                        }
-                        $matched = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (!$matched) {
-                Log::warning('No output pattern matched. Output section:', ['section' => substr($outputSection, 0, 500)]);
-            }
-        } else {
-            Log::warning('EXPECTED_OUTPUT section not found in response');
-        }
-
-        // Extract solution - try multiple patterns
-        $solutionPatterns = [
-            '/SOLUTION:\s*```[\w]*\s*(.+?)```/s',
-            '/SOLUTION:\s*```(.+?)```/s',
-            '/SOLUTION:\s*(.+?)(?=IMPORTANT:|$)/s',
-        ];
-        
-        $solutionFound = false;
-        foreach ($solutionPatterns as $pattern) {
-            if (preg_match($pattern, $text, $matches)) {
-                $solutionText = trim($matches[1]);
-                // Remove code block markers if present
-                $solutionText = preg_replace('/```[\w]*\s*/', '', $solutionText);
-                $solutionText = preg_replace('/```\s*$/', '', $solutionText);
-                $question['solution'] = trim($solutionText);
-                
-                if (!empty($question['solution'])) {
-                    Log::info('Parsed solution:', ['length' => strlen($question['solution'])]);
-                    $solutionFound = true;
-                    break;
-                }
-            }
-        }
-        
-        if (!$solutionFound) {
-            Log::warning('Solution not found in response');
-        }
-
-        // Log summary before fallbacks
-        Log::info('Parsing summary before fallbacks:', [
-            'has_title' => !empty($question['title']),
-            'has_description' => !empty($question['description']),
-            'has_problem_statement' => !empty($question['problemStatement']),
-            'constraints_count' => count($question['constraints']),
-            'has_expected_approach' => !empty($question['expectedApproach']),
-            'tests_count' => count($question['tests']),
-            'has_solution' => !empty($question['solution']),
-        ]);
-
-        // Fallback values if parsing failed
-        if (empty($question['title'])) {
-            $question['title'] = 'Generated Coding Question';
-            Log::warning('Using fallback title');
-        }
-        if (empty($question['description'])) {
-            $question['description'] = 'Please solve the following coding problem.';
-            Log::warning('Using fallback description');
-        }
-        if (empty($question['problemStatement'])) {
-            $question['problemStatement'] = $question['description'];
-            Log::warning('Using fallback problem statement');
-        }
-        if (empty($question['constraints'])) {
-            $question['constraints'] = ['Input size: 1 ≤ n ≤ 10^3', 'Values: -10^9 ≤ value ≤ 10^9', 'Time complexity requirement: O(n) or better'];
-            Log::warning('Using fallback constraints');
-        }
-        if (empty($question['expectedApproach'])) {
-            $question['expectedApproach'] = 'Follow the requirements and hints provided in the problem description.';
-            Log::warning('Using fallback expected approach');
-        }
-        if (empty($question['tests'])) {
-            $question['tests'][] = [
-                'input' => 'Example input',
-                'output' => 'Example output',
-                'explanation' => ''
-            ];
-            Log::warning('Using fallback tests');
-        }
-        if (empty($question['solution'])) {
-            $question['solution'] = '// Solution will be generated';
-            Log::warning('Using fallback solution');
-        }
-
-        return $question;
     }
 }

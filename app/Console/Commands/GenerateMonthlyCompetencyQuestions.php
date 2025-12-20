@@ -10,11 +10,13 @@ use App\Models\Question;
 class GenerateMonthlyCompetencyQuestions extends Command
 {
     protected $signature = 'questions:generate-monthly-competency';
-
-    protected $description = 'Generate monthly competency test questions: 2 MCQs, 2 Code Solutions, and 2 Question Evaluations per language';
+    protected $description = 'Generate monthly competency test questions with hints and solutions';
 
     public function handle()
     {
+        // FIX: Prevent timeout
+        set_time_limit(0);
+
         $this->info('Starting monthly competency test question generation...');
         
         $languages = ['Python', 'Java', 'JavaScript', 'PHP', 'C++', 'C', 'SQL'];
@@ -41,116 +43,72 @@ class GenerateMonthlyCompetencyQuestions extends Command
         
         $this->newLine();
         $this->info("Generation Complete! Success: {$totalGenerated}, Failed: {$totalFailed}");
-        
         return 0;
     }
     
+    // ... [generateMCQQuestions and generateQuestionEvaluationQuestions remain unchanged] ...
+
     private function generateMCQQuestions($language, $topics)
     {
         $difficulties = ['beginner', 'intermediate'];
-        $success = 0;
-        $failed = 0;
-        
+        $success = 0; $failed = 0;
         foreach ($difficulties as $index => $difficulty) {
             try {
                 $topic = $topics[array_rand($topics)];
                 $this->line("  - MCQ ($difficulty)...");
-                
                 $question = $this->generateMCQ($language, $difficulty, $topic);
-                
-                if ($question) {
-                    $success++;
-                    $this->info("    Success");
-                } else {
-                    $failed++;
-                    $this->error("    Failed");
-                }
-                
-                sleep(10); 
-                
-            } catch (\Exception $e) {
-                $failed++;
-                $this->error("    Error: " . $e->getMessage());
-            }
+                if ($question) { $success++; $this->info("    Success"); } 
+                else { $failed++; $this->error("    Failed"); }
+                sleep(8); 
+            } catch (\Exception $e) { $failed++; $this->error("    Error: " . $e->getMessage()); }
         }
-        
-        return ['success' => $success, 'failed' => $failed];
-    }
-    
-    private function generateCodeSolutionQuestions($language, $topics)
-    {
-        $difficulties = ['beginner', 'intermediate'];
-        $success = 0;
-        $failed = 0;
-        
-        foreach ($difficulties as $index => $difficulty) {
-            try {
-                $topic = $topics[array_rand($topics)];
-                $this->line("  - Code Solution ($difficulty)...");
-                
-                $question = $this->generateCodeSolution($language, $difficulty, $topic);
-                
-                if ($question) {
-                    $success++;
-                    $this->info("    Success");
-                } else {
-                    $failed++;
-                    $this->error("    Failed");
-                }
-                
-                sleep(10);
-                
-            } catch (\Exception $e) {
-                $failed++;
-                $this->error("    Error: " . $e->getMessage());
-            }
-        }
-        
         return ['success' => $success, 'failed' => $failed];
     }
     
     private function generateQuestionEvaluationQuestions($language, $topics)
     {
         $difficulties = ['beginner', 'intermediate'];
-        $success = 0;
-        $failed = 0;
-        
+        $success = 0; $failed = 0;
         foreach ($difficulties as $index => $difficulty) {
             try {
                 $topic = $topics[array_rand($topics)];
                 $this->line("  - Question Evaluation ($difficulty)...");
-                
                 $question = $this->generateQuestionEvaluation($language, $difficulty, $topic);
-                
-                if ($question) {
-                    $success++;
-                    $this->info("    Success");
-                } else {
-                    $failed++;
-                    $this->error("    Failed");
-                }
-                
-                sleep(10);
-                
-            } catch (\Exception $e) {
-                $failed++;
-                $this->error("    Error: " . $e->getMessage());
-            }
+                if ($question) { $success++; $this->info("    Success"); } 
+                else { $failed++; $this->error("    Failed"); }
+                sleep(8);
+            } catch (\Exception $e) { $failed++; $this->error("    Error: " . $e->getMessage()); }
         }
-        
         return ['success' => $success, 'failed' => $failed];
     }
-    
+
+    private function generateCodeSolutionQuestions($language, $topics)
+    {
+        $difficulties = ['beginner', 'intermediate'];
+        $success = 0; $failed = 0;
+        
+        foreach ($difficulties as $index => $difficulty) {
+            try {
+                $topic = $topics[array_rand($topics)];
+                $this->line("  - Code Solution ($difficulty)...");
+                $question = $this->generateCodeSolution($language, $difficulty, $topic);
+                if ($question) { $success++; $this->info("    Success"); } 
+                else { $failed++; $this->error("    Failed"); }
+                sleep(10); 
+            } catch (\Exception $e) { $failed++; $this->error("    Error: " . $e->getMessage()); }
+        }
+        return ['success' => $success, 'failed' => $failed];
+    }
+
+    // --- GENERATORS ---
+
     private function generateMCQ($language, $difficulty, $topic)
     {
         $prompt = $this->buildMCQPrompt($language, $difficulty, $topic);
         $generatedText = $this->callGeminiAPIWithRetry($prompt);
-        
-        if (!$generatedText) {
-            return null;
-        }
-        
+        if (!$generatedText) return null;
         $parsed = $this->parseMCQ($generatedText);
+        if (empty($parsed['question']) || empty($parsed['choices'])) return null;
         return $this->saveMCQQuestion($parsed, $language, $difficulty, $topic);
     }
     
@@ -158,12 +116,15 @@ class GenerateMonthlyCompetencyQuestions extends Command
     {
         $prompt = $this->buildCodeSolutionPrompt($language, $difficulty, $topic);
         $generatedText = $this->callGeminiAPIWithRetry($prompt);
-        
-        if (!$generatedText) {
-            return null;
-        }
+        if (!$generatedText) return null;
         
         $parsed = $this->parseCodeSolution($generatedText);
+        
+        if (empty($parsed['tests'])) {
+            $this->warn("    No structured test cases found.");
+            return null;
+        }
+
         return $this->saveCodeSolutionQuestion($parsed, $language, $difficulty, $topic);
     }
     
@@ -171,50 +132,35 @@ class GenerateMonthlyCompetencyQuestions extends Command
     {
         $prompt = $this->buildQuestionEvaluationPrompt($language, $difficulty, $topic);
         $generatedText = $this->callGeminiAPIWithRetry($prompt);
-        
-        if (!$generatedText) {
-            return null;
-        }
-        
+        if (!$generatedText) return null;
         $parsed = $this->parseQuestionEvaluation($generatedText);
+        if (empty($parsed['questionUnderReview'])) return null;
         return $this->saveQuestionEvaluationQuestion($parsed, $language, $difficulty, $topic);
     }
     
+    // --- API HANDLER ---
     private function callGeminiAPIWithRetry($prompt)
     {
         $geminiApiKey = env('GEMINI_API_KEY');
-        
-        if (!$geminiApiKey) {
-            throw new \Exception('Gemini API key not configured');
-        }
+        if (!$geminiApiKey) throw new \Exception('Gemini API key not configured');
 
-        $maxRetries = 3;
-        $attempt = 0;
-        $baseDelay = 5;
+        $maxRetries = 3; 
+        $attempt = 0; 
+        $baseDelay = 10; 
 
         while ($attempt < $maxRetries) {
             $attempt++;
-            
             try {
-                $response = Http::timeout(60)->withHeaders([
-                    'Content-Type' => 'application/json',
-                ])->post("https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={$geminiApiKey}", [
-                    'contents' => [
-                        [
-                            'parts' => [
-                                ['text' => $prompt]
-                            ]
-                        ]
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 0.7,
-                        'maxOutputTokens' => 2048,
-                    ]
+                $response = Http::timeout(60)->withHeaders(['Content-Type' => 'application/json'])
+                    ->post("https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={$geminiApiKey}", [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    'generationConfig' => ['temperature' => 0.7, 'maxOutputTokens' => 2048]
                 ]);
 
                 if ($response->status() === 429) {
-                    $this->warn("    Rate limited (429). Retrying in " . ($baseDelay * $attempt) . " seconds...");
-                    sleep($baseDelay * $attempt);
+                    $delay = $baseDelay * $attempt;
+                    $this->warn("    Rate limited (429). Retrying in {$delay}s...");
+                    sleep($delay);
                     continue;
                 }
 
@@ -224,196 +170,149 @@ class GenerateMonthlyCompetencyQuestions extends Command
                 }
 
                 $result = $response->json();
-                
                 if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
                     return $result['candidates'][0]['content']['parts'][0]['text'];
                 }
-
                 return null;
 
             } catch (\Exception $e) {
-                if ($attempt === $maxRetries) {
-                    Log::error('Gemini API Exception', ['message' => $e->getMessage()]);
-                    return null;
-                }
+                if ($attempt === $maxRetries) return null;
                 sleep($baseDelay * $attempt);
             }
         }
-        
         return null;
     }
     
+    // --- PROMPT BUILDERS ---
+
     private function buildMCQPrompt($language, $difficulty, $topic)
     {
         $lengthInstruction = $difficulty === 'beginner' 
-            ? "Keep the question very short (max 2 sentences)." 
-            : "Keep the question concise (max 3 sentences).";
+            ? "The question must be a single, direct sentence." 
+            : "The question must be maximum 2 sentences.";
 
-        $prompt = "You are an expert programming instructor.\n";
-        $prompt .= "Generate an MCQ question.\n\n";
-        $prompt .= "Requirements:\n";
-        $prompt .= "- Difficulty: {$difficulty}\n";
-        $prompt .= "- Language: {$language}\n";
-        $prompt .= "- Topic: {$topic}\n";
-        $prompt .= "- {$lengthInstruction}\n";
-        $prompt .= "- Provide 1 correct answer and 3 realistic distractors.\n";
-        $prompt .= "- Do NOT include explanations.\n\n";
-        
-        $prompt .= "Output format:\n";
-        $prompt .= "QUESTION:\n[Short question here]\n\n";
-        $prompt .= "CHOICES:\n";
-        $prompt .= "A) [Choice]\n";
-        $prompt .= "B) [Choice]\n";
-        $prompt .= "C) [Choice]\n";
-        $prompt .= "D) [Choice]\n\n";
-        $prompt .= "CORRECT_ANSWER:\n[A, B, C, or D]\n";
-        
-        return $prompt;
+        return "Generate a focused MCQ question for {$language} ({$difficulty}) on {$topic}.\n" .
+               "- {$lengthInstruction} Avoid scenarios.\n" .
+               "- Output format:\n" .
+               "QUESTION:\n[Question]\n\n" .
+               "CHOICES:\nA) [Choice]\nB) [Choice]\nC) [Choice]\nD) [Choice]\n\n" .
+               "CORRECT_ANSWER:\n[A, B, C, or D]\n";
     }
     
+    /**
+     * UPDATED: Added HINTS and SOLUTION to prompt
+     */
     private function buildCodeSolutionPrompt($language, $difficulty, $topic)
     {
-        $lengthInstruction = $difficulty === 'beginner' 
-            ? "Keep the problem statement very simple and short (max 30 words)." 
-            : "Keep the problem statement concise (max 60 words).";
-
-        $prompt = "You are an expert programming instructor.\n";
-        $prompt .= "Generate a coding question for a REVIEWER to assess.\n";
-        $prompt .= "Difficulty: {$difficulty}\n";
-        $prompt .= "Language: {$language}\n";
-        $prompt .= "Topic: {$topic}\n";
-        $prompt .= "{$lengthInstruction}\n\n";
-
-        $prompt .= "Use the following structure EXACTLY:\n\n";
-        $prompt .= "TITLE:\n[Short Title]\n\n";
-        $prompt .= "DESCRIPTION:\n[1 sentence scenario]\n\n";
-        $prompt .= "PROBLEM_STATEMENT:\n[Concise technical requirement]\n\n";
-        $prompt .= "CONSTRAINTS:\n- Input parameters: [List]\n- Output: [Type]\n- Rules: [Brief rules]\n- Edge cases: [List 2]\n\n";
-        $prompt .= "HINTS:\n1. [Hint]\n2. [Hint]\n\n";
-        $prompt .= "INPUT:\nTest Case 1:\nInput: [Value]\nTest Case 2:\nInput: [Value]\nTest Case 3:\nInput: [Value]\nTest Case 4:\nInput: [Value]\n\n";
-        $prompt .= "EXPECTED_OUTPUT:\nTest Case 1:\nOutput: [Value]\nTest Case 2:\nOutput: [Value]\nTest Case 3:\nOutput: [Value]\nTest Case 4:\nOutput: [Value]\n";
-
-        return $prompt;
+        return "Generate a {$difficulty} coding problem for {$language} on {$topic}.\n" .
+               "STRICT REQUIREMENT: The problem MUST ask the user to implement a specific function name.\n" .
+               "Example: 'Implement the `calculateSum(arr)` function...'\n" .
+               "STRICT JSON REQUIREMENT: Provide test cases in a strict JSON array format.\n" .
+               "Output format:\n" .
+               "TITLE:\n[Title]\n\n" .
+               "FUNCTION_NAME:\n[The exact name of the function, e.g. twoSum]\n\n" .
+               "PROBLEM_STATEMENT:\n[Start with 'Implement the `functionName` function which...']\n\n" .
+               "CONSTRAINTS:\n- [Constraint]\n\n" .
+               "HINTS:\n[Brief hint on approach]\n\n" . // Added Hint
+               "TEST_CASES_JSON:\n" .
+               "[\n" .
+               "  { \"input\": { \"arr\": [1,2], \"k\": 1 }, \"output\": 3 },\n" .
+               "  { \"input\": { \"arr\": [5], \"k\": 0 }, \"output\": 5 }\n" .
+               "]\n\n" .
+               "SOLUTION:\n[Clean solution code in {$language}]\n"; // Added Solution
     }
     
     private function buildQuestionEvaluationPrompt($language, $difficulty, $topic)
     {
-        $lengthInstruction = $difficulty === 'beginner' 
-            ? "Make the flawed question very short and simple." 
-            : "Make the flawed question concise.";
-
-        $prompt = "Generate a multiple-choice question testing a reviewer's ability to spot errors in a coding question.\n";
-        $prompt .= "Language: {$language}\n";
-        $prompt .= "Topic: {$topic}\n";
-        $prompt .= "Difficulty: {$difficulty}\n";
-        $prompt .= "{$lengthInstruction}\n\n";
-        
-        $prompt .= "Output format:\n";
-        $prompt .= "QUESTION_UNDER_REVIEW:\n[A short flawed programming question]\n\n";
-        $prompt .= "EVALUATION_PROMPT:\nWhat is the main issue?\n\n";
-        $prompt .= "CHOICES:\n";
-        $prompt .= "A) [Choice]\n";
-        $prompt .= "B) [Choice]\n";
-        $prompt .= "C) [Choice]\n";
-        $prompt .= "D) [Choice]\n\n";
-        $prompt .= "CORRECT_ANSWER:\n[A, B, C, or D]\n";
-        
-        return $prompt;
+        return "Generate a code review MCQ for {$language} ({$difficulty}) on {$topic}.\n" .
+               "Create a flawed code snippet and ask what is wrong.\n" .
+               "Output format:\n" .
+               "QUESTION_UNDER_REVIEW:\n[Code Snippet]\n\n" .
+               "EVALUATION_PROMPT:\n[Question like 'What is the bug?']\n\n" .
+               "CHOICES:\nA) [Choice]\nB) [Choice]\nC) [Choice]\nD) [Choice]\n\n" .
+               "CORRECT_ANSWER:\n[A, B, C, or D]\n";
     }
     
+    // --- PARSERS ---
+
     private function parseMCQ($text)
     {
         $mcq = ['question' => '', 'choices' => [], 'correctAnswer' => ''];
         
-        if (preg_match('/QUESTION:\s*(.+?)(?=CHOICES:|$)/s', $text, $matches)) {
+        if (preg_match('/QUESTION:\s*(.+?)(?=CHOICES:|$)/is', $text, $matches)) 
             $mcq['question'] = trim($matches[1]);
+        
+        if (preg_match('/CHOICES:\s*(.+?)(?=CORRECT_ANSWER:|$)/is', $text, $matches)) {
+            preg_match_all('/([A-D])\)\s*(.+?)(?=[A-D]\)|$)/s', trim($matches[1]), $choiceMatches, PREG_SET_ORDER);
+            foreach ($choiceMatches as $match) $mcq['choices'][$match[1]] = trim($match[2]);
         }
         
-        if (preg_match('/CHOICES:\s*(.+?)(?=CORRECT_ANSWER:|$)/s', $text, $matches)) {
-            $choicesText = trim($matches[1]);
-            preg_match_all('/([A-D])\)\s*(.+?)(?=[A-D]\)|$)/s', $choicesText, $choiceMatches, PREG_SET_ORDER);
-            foreach ($choiceMatches as $match) {
-                $mcq['choices'][$match[1]] = trim($match[2]);
-            }
-        }
-        
-        if (preg_match('/CORRECT_ANSWER:\s*([A-D])/i', $text, $matches)) {
+        if (preg_match('/CORRECT_ANSWER:\s*([A-D])/i', $text, $matches)) 
             $mcq['correctAnswer'] = strtoupper(trim($matches[1]));
-        }
         
         return $mcq;
     }
     
+    /**
+     * UPDATED: Added HINTS and SOLUTION parsing
+     */
     private function parseCodeSolution($text)
     {
         $question = [
-            'title' => '',
+            'title' => 'Coding Challenge',
+            'function_name' => 'solve',
             'description' => '',
             'problemStatement' => '',
             'constraints' => [],
-            'hints' => '',
-            'tests' => []
+            'hint' => '', // Changed from hints to hint for consistency with DB
+            'tests' => [],
+            'solution' => '' // Added solution
         ];
 
-        if (preg_match('/TITLE:\s*(.+?)(?=DESCRIPTION:|$)/s', $text, $matches)) {
-            $question['title'] = trim($matches[1]);
-        }
+        if (preg_match('/TITLE:\s*(.+?)(\r\n|\n|$)/', $text, $matches)) 
+            $question['title'] = substr(trim(str_replace(['*', '#', '`'], '', $matches[1])), 0, 190);
 
-        if (preg_match('/DESCRIPTION:\s*(.+?)(?=PROBLEM_STATEMENT:|$)/s', $text, $matches)) {
-            $question['description'] = trim($matches[1]);
-        }
+        if (preg_match('/FUNCTION_NAME:\s*(.+?)(\r\n|\n|$)/', $text, $matches)) 
+            $question['function_name'] = trim($matches[1]);
 
-        if (preg_match('/PROBLEM_STATEMENT:\s*(.+?)(?=CONSTRAINTS:|$)/s', $text, $matches)) {
+        if (preg_match('/(?:PROBLEM_STATEMENT|DESCRIPTION)[:\s]*\s*(.+?)(?=(?:CONSTRAINTS|HINTS|TEST_CASES_JSON)|$)/is', $text, $matches)) {
             $question['problemStatement'] = trim($matches[1]);
+            $question['description'] = $question['problemStatement'];
         }
 
-        if (preg_match('/CONSTRAINTS:\s*(.+?)(?=HINTS:|$)/s', $text, $matches)) {
-            $constraintsText = trim($matches[1]);
-            $lines = explode("\n", $constraintsText);
+        if (preg_match('/CONSTRAINTS[:\s]*\s*(.+?)(?=(?:HINTS|TEST_CASES_JSON)|$)/is', $text, $matches)) {
+            $lines = explode("\n", trim($matches[1]));
             foreach ($lines as $line) {
-                $line = trim($line);
-                if (!empty($line) && $line !== '-' && !preg_match('/^(Input parameters|Output|Rules|Edge cases):$/i', $line)) {
-                    $line = preg_replace('/^[-•]\s*/', '', $line);
-                    if (!empty($line)) {
-                        $question['constraints'][] = $line;
-                    }
-                }
+                $line = trim(preg_replace('/^[-•*]\s*/', '', $line));
+                if (!empty($line) && stripos($line, 'TEST_CASES') === false) $question['constraints'][] = $line;
             }
         }
 
-        if (preg_match('/HINTS:\s*(.+?)(?=INPUT:|$)/s', $text, $matches)) {
-            $question['hints'] = trim($matches[1]);
+        // Parse Hint
+        if (preg_match('/HINTS[:\s]*\s*(.+?)(?=(?:TEST_CASES_JSON|SOLUTION)|$)/is', $text, $matches)) {
+            $question['hint'] = trim($matches[1]);
         }
 
-        if (preg_match('/INPUT:\s*(.+?)(?=EXPECTED_OUTPUT:|$)/s', $text, $matches)) {
-            $inputText = $matches[1];
-            preg_match_all('/Test Case (\d+)[^:]*:\s*(?:Input:\s*)?(.+?)(?=Test Case \d+|$)/s', $inputText, $inputMatches, PREG_SET_ORDER);
-            
-            foreach ($inputMatches as $match) {
-                $testCaseNum = (int)$match[1];
-                $inputValue = trim($match[2]);
-                $inputValue = preg_replace('/^Input:\s*/i', '', $inputValue);
-                
-                $question['tests'][$testCaseNum - 1] = [
-                    'input' => trim($inputValue),
-                    'output' => ''
-                ];
+        // Parse JSON
+        $jsonString = '';
+        if (preg_match('/TEST_CASES_JSON[:\s]*(\[.+\])/s', $text, $matches)) {
+            $jsonString = $matches[1];
+        } elseif (preg_match('/(\[\s*\{\s*"input".+\])/s', $text, $matches)) {
+            $jsonString = $matches[1];
+        }
+
+        if (!empty($jsonString)) {
+            $jsonString = preg_replace('/^```json\s*/i', '', trim($jsonString));
+            $jsonString = preg_replace('/```\s*$/', '', $jsonString);
+            $decoded = json_decode($jsonString, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $question['tests'] = $decoded;
             }
         }
 
-        if (preg_match('/EXPECTED_OUTPUT:\s*(.+?)(?=IMPORTANT:|$)/s', $text, $matches)) {
-            $outputText = $matches[1];
-            preg_match_all('/Test Case (\d+)[^:]*:\s*(?:Output:\s*)?(.+?)(?=Test Case \d+|$)/s', $outputText, $outputMatches, PREG_SET_ORDER);
-            
-            foreach ($outputMatches as $match) {
-                $testCaseNum = (int)$match[1];
-                $outputValue = trim($match[2]);
-                $outputValue = preg_replace('/^Output:\s*/i', '', $outputValue);
-                
-                if (isset($question['tests'][$testCaseNum - 1])) {
-                    $question['tests'][$testCaseNum - 1]['output'] = trim($outputValue);
-                }
-            }
+        // Parse Solution Code
+        if (preg_match('/SOLUTION[:\s]*\s*(?:```[\w]*\s*)?(.+?)(?:```|$)/s', $text, $matches)) {
+            $question['solution'] = trim($matches[1]);
         }
 
         return $question;
@@ -423,85 +322,61 @@ class GenerateMonthlyCompetencyQuestions extends Command
     {
         $evaluation = ['questionUnderReview' => '', 'evaluationPrompt' => '', 'choices' => [], 'correctAnswer' => ''];
         
-        if (preg_match('/QUESTION_UNDER_REVIEW:\s*(.+?)(?=EVALUATION_PROMPT:|$)/s', $text, $matches)) {
+        if (preg_match('/QUESTION_UNDER_REVIEW:\s*(.+?)(?=(?:EVALUATION_PROMPT|CHOICES)|$)/is', $text, $matches)) 
             $evaluation['questionUnderReview'] = trim($matches[1]);
-        }
         
-        if (preg_match('/EVALUATION_PROMPT:\s*(.+?)(?=CHOICES:|$)/s', $text, $matches)) {
+        if (preg_match('/EVALUATION_PROMPT:\s*(.+?)(?=(?:CHOICES|CORRECT_ANSWER)|$)/is', $text, $matches)) {
             $evaluation['evaluationPrompt'] = trim($matches[1]);
+        } else {
+            $evaluation['evaluationPrompt'] = "Identify the main issue in the code above.";
         }
         
-        if (preg_match('/CHOICES:\s*(.+?)(?=CORRECT_ANSWER:|$)/s', $text, $matches)) {
-            $choicesText = trim($matches[1]);
-            preg_match_all('/([A-D])\)\s*(.+?)(?=[A-D]\)|$)/s', $choicesText, $choiceMatches, PREG_SET_ORDER);
-            foreach ($choiceMatches as $match) {
-                $evaluation['choices'][$match[1]] = trim($match[2]);
-            }
+        if (preg_match('/CHOICES:\s*(.+?)(?=CORRECT_ANSWER:|$)/is', $text, $matches)) {
+            preg_match_all('/([A-D])\)\s*(.+?)(?=[A-D]\)|$)/s', trim($matches[1]), $choiceMatches, PREG_SET_ORDER);
+            foreach ($choiceMatches as $match) $evaluation['choices'][$match[1]] = trim($match[2]);
         }
         
-        if (preg_match('/CORRECT_ANSWER:\s*([A-D])/i', $text, $matches)) {
+        if (preg_match('/CORRECT_ANSWER:\s*([A-D])/i', $text, $matches)) 
             $evaluation['correctAnswer'] = strtoupper(trim($matches[1]));
-        }
         
         return $evaluation;
     }
     
+    // --- SAVERS ---
+
     private function saveMCQQuestion($parsed, $language, $difficulty, $topic)
     {
-        $levelMap = ['beginner' => 'beginner', 'intermediate' => 'intermediate'];
-        $mappedLevel = $levelMap[$difficulty] ?? 'intermediate';
-
         return Question::create([
             'title' => 'MCQ: ' . substr($parsed['question'], 0, 100),
             'content' => $parsed['question'],
             'description' => $parsed['question'],
-            'problem_statement' => null,
-            'constraints' => null,
-            'expected_output' => null,
             'answersData' => $parsed['correctAnswer'],
             'options' => $parsed['choices'],
             'status' => 'Approved',
-            'reviewer_ID' => null,
             'language' => $language,
-            'level' => $mappedLevel,
+            'level' => $difficulty,
             'questionCategory' => 'competencyTest',
             'questionType' => 'MCQ_Question',
             'chapter' => $topic,
-            'hint' => null,
-            'input' => null,
         ]);
     }
     
+    /**
+     * UPDATED: Saves hints and solution
+     */
     private function saveCodeSolutionQuestion($parsed, $language, $difficulty, $topic)
     {
-        $levelMap = ['beginner' => 'beginner', 'intermediate' => 'intermediate'];
-        $mappedLevel = $levelMap[$difficulty] ?? 'intermediate';
-
-        $constraintsText = '';
-        foreach ($parsed['constraints'] as $constraint) {
-            $constraintsText .= "- {$constraint}\n";
-        }
-
+        $constraintsText = implode("\n", array_map(fn($c) => "- $c", $parsed['constraints']));
+        
         $inputData = [];
-        foreach ($parsed['tests'] as $index => $test) {
-            $inputData[] = [
-                'test_case' => $index + 1,
-                'input' => $test['input']
-            ];
-        }
-
         $expectedOutputData = [];
+
         foreach ($parsed['tests'] as $index => $test) {
-            $expectedOutputData[] = [
-                'test_case' => $index + 1,
-                'output' => $test['output']
-            ];
+            $inputData[] = ['test_case' => $index + 1, 'input' => $test['input']];
+            $expectedOutputData[] = ['test_case' => $index + 1, 'output' => $test['output']];
         }
 
-        $content = "# {$parsed['title']}\n\n";
-        $content .= "## Description\n{$parsed['description']}\n\n";
-        $content .= "## Problem Statement\n{$parsed['problemStatement']}\n\n";
-        $content .= "## Constraints\n" . $constraintsText;
+        $content = "# {$parsed['title']}\n\n## Description\n{$parsed['description']}\n\n## Constraints\n$constraintsText";
 
         return Question::create([
             'title' => $parsed['title'],
@@ -510,45 +385,40 @@ class GenerateMonthlyCompetencyQuestions extends Command
             'problem_statement' => $parsed['problemStatement'],
             'constraints' => trim($constraintsText),
             'expected_output' => $expectedOutputData,
-            'answersData' => 'TO_BE_EVALUATED_BY_REVIEWER',
+            
+            // UPDATED: Now saves the actual solution code
+            'answersData' => $parsed['solution'] ?? 'Solution generation failed',
+            
+            // UPDATED: Now saves the hint
+            'hint' => $parsed['hint'] ?? null,
+            
             'status' => 'Approved',
-            'reviewer_ID' => null,
             'language' => $language,
-            'level' => $mappedLevel,
+            'level' => $difficulty,
             'questionCategory' => 'competencyTest',
             'questionType' => 'Code_Solution',
             'chapter' => $topic,
-            'hint' => $parsed['hints'],
             'input' => $inputData,
         ]);
     }
     
     private function saveQuestionEvaluationQuestion($parsed, $language, $difficulty, $topic)
     {
-        $levelMap = ['beginner' => 'beginner', 'intermediate' => 'intermediate'];
-        $mappedLevel = $levelMap[$difficulty] ?? 'intermediate';
-
-        $fullQuestion = "Question Under Review:\n\n" . $parsed['questionUnderReview'] . "\n\n";
-        $fullQuestion .= $parsed['evaluationPrompt'];
+        $fullQuestion = "Question Under Review:\n\n" . $parsed['questionUnderReview'] . "\n\n" . $parsed['evaluationPrompt'];
 
         return Question::create([
             'title' => 'Question Evaluation: ' . substr($parsed['evaluationPrompt'], 0, 80),
             'content' => $fullQuestion,
             'description' => $parsed['questionUnderReview'],
             'problem_statement' => $parsed['evaluationPrompt'],
-            'constraints' => null,
-            'expected_output' => null,
             'answersData' => $parsed['correctAnswer'],
             'options' => $parsed['choices'],
             'status' => 'Approved',
-            'reviewer_ID' => null,
             'language' => $language,
-            'level' => $mappedLevel,
+            'level' => $difficulty,
             'questionCategory' => 'competencyTest',
             'questionType' => 'Question_Evaluation',
             'chapter' => $topic,
-            'hint' => null,
-            'input' => null,
         ]);
     }
 }

@@ -46,4 +46,100 @@ class Learner extends Authenticatable
     {
         return $this->hasMany(UserProficiency::class, 'learner_ID', 'learner_ID');
     }
+
+    // ========================================
+    // QUADRATIC CURVE LEVELING SYSTEM
+    // Formula: Total XP Required = Constant × (Level)²
+    // ========================================
+    
+    const LEVEL_CONSTANT = 10; // Controls the steepness of the curve
+    
+    /**
+     * Calculate current level based on total XP
+     * Uses quadratic formula: Level thresholds are 0, 40, 90, 160, 250, etc.
+     * 
+     * @return int Current level (minimum 1)
+     */
+    public function getCurrentLevel()
+    {
+        if ($this->totalPoint < 40) {
+            return 1; // Level 1: 0-39 XP
+        } elseif ($this->totalPoint < 90) {
+            return 2; // Level 2: 40-89 XP
+        } elseif ($this->totalPoint < 160) {
+            return 3; // Level 3: 90-159 XP
+        } elseif ($this->totalPoint < 250) {
+            return 4; // Level 4: 160-249 XP
+        } elseif ($this->totalPoint < 360) {
+            return 5; // Level 5: 250-359 XP
+        } else {
+            // For higher levels, use the quadratic formula
+            // Level = floor(sqrt(XP / 10)) + 1
+            return floor(sqrt($this->totalPoint / self::LEVEL_CONSTANT)) + 1;
+        }
+    }
+    
+    /**
+     * Get XP required for a specific level
+     * Formula: XP = Constant × (Level²)
+     * 
+     * @param int $level Target level
+     * @return int Total XP required to reach that level
+     */
+    public static function getXpRequirement($level)
+    {
+        if ($level <= 1) return 0; // Level 1 starts at 0 XP
+        
+        // Level 2: 10 × (2²) = 10 × 4 = 40 XP
+        // Level 3: 10 × (3²) = 10 × 9 = 90 XP
+        // Level 4: 10 × (4²) = 10 × 16 = 160 XP
+        return self::LEVEL_CONSTANT * ($level * $level);
+    }
+    
+    /**
+     * Get XP needed to reach the next level
+     * 
+     * @return int XP needed for next level
+     */
+    public function getXpForNextLevel()
+    {
+        $currentLevel = $this->getCurrentLevel();
+        $nextLevel = $currentLevel + 1;
+        
+        return self::getXpRequirement($nextLevel);
+    }
+    
+    /**
+     * Get progress towards next level
+     * Returns array with progress information for UI display
+     * 
+     * @return array ['current_level', 'next_level', 'current_xp', 'xp_progress', 'xp_gap', 'percentage']
+     */
+    public function getLevelProgress()
+    {
+        $currentLevel = $this->getCurrentLevel();
+        $nextLevel = $currentLevel + 1;
+        
+        // XP thresholds
+        $currentLevelXp = self::getXpRequirement($currentLevel);
+        $nextLevelXp = self::getXpRequirement($nextLevel);
+        
+        // Progress within current level
+        $xpProgress = $this->totalPoint - $currentLevelXp;
+        $xpGap = $nextLevelXp - $currentLevelXp;
+        
+        // Percentage for progress bar
+        $percentage = $xpGap > 0 ? round(($xpProgress / $xpGap) * 100, 1) : 0;
+        
+        return [
+            'current_level' => $currentLevel,
+            'next_level' => $nextLevel,
+            'current_xp' => $this->totalPoint,
+            'xp_progress' => $xpProgress,
+            'xp_gap' => $xpGap,
+            'percentage' => $percentage,
+            'xp_for_current_level' => $currentLevelXp,
+            'xp_for_next_level' => $nextLevelXp,
+        ];
+    }
 }

@@ -102,24 +102,22 @@
             <!-- Current Level -->
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon accuracy">🎯</div>
+                    <div class="stat-label">Current Level</div>
                     <span class="stat-badge purple">Level</span>
                 </div>
-                <div class="stat-label">Current Level</div>
                 <div class="stat-value">{{ $currentLevel }}</div>
                 <div class="stat-progress">
                     <div class="stat-progress-bar" style="width: {{ min($xpProgress, 100) }}%"></div>
                 </div>
-                <div class="stat-footer">{{ number_format($xpProgress, 0) }}% to Level {{ $currentLevel + 1 }}</div>
+                <div class="stat-footer">{{ 100-number_format($xpProgress, 0) }}% to Level {{ $currentLevel + 1 }}</div>
             </div>
 
             <!-- XP Points -->
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon total">⭐</div>
+                    <div class="stat-label">Experience Points</div>
                     <span class="stat-badge info">XP</span>
                 </div>
-                <div class="stat-label">Experience Points</div>
                 <div class="stat-value">{{ number_format($xpPoints) }}</div>
                 <div class="stat-progress">
                     <div class="stat-progress-bar" style="width: {{ min($xpProgress, 100) }}%"></div>
@@ -130,10 +128,9 @@
             <!-- Current Streak -->
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon pending">🔥</div>
+                    <div class="stat-label">Current Streak</div>
                     <span class="stat-badge urgent">{{ $currentStreak > 0 ? 'Hot!' : 'Start!' }}</span>
                 </div>
-                <div class="stat-label">Current Streak</div>
                 <div class="stat-value">{{ $currentStreak }}</div>
                 <div class="stat-progress">
                     <div class="stat-progress-bar" style="width: {{ min(($currentStreak / 30) * 100, 100) }}%"></div>
@@ -144,10 +141,9 @@
             <!-- Achievements -->
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon approved">🏆</div>
+                    <div class="stat-label">Achievements</div>
                     <span class="stat-badge trending">{{ $achievements > 0 ? '↗' : '🎖️' }}</span>
                 </div>
-                <div class="stat-label">Achievements</div>
                 <div class="stat-value">{{ $achievements }}</div>
                 <div class="stat-progress">
                     <div class="stat-progress-bar" style="width: {{ min(($achievements / 8) * 100, 100) }}%"></div>
@@ -168,21 +164,27 @@
             <div class="challenge-content">
                 <div class="challenge-header">
                     <h2 class="challenge-title">Today's Challenge</h2>
-                    <span class="challenge-badge">✨ Recommended</span>
+                    <span class="challenge-badge">✨ AI Recommended</span>
                 </div>
-                <h3 class="challenge-name">Array Manipulation Challenge</h3>
+                <h3 class="challenge-name">{{ $todaysChallenge['title'] }}</h3>
                 <p class="challenge-description">
-                    Based on your Python skills and recent progress, we recommend practicing array operations. Perfect for strengthening your foundation and advancing to the next level!
+                    {{ $todaysChallenge['description'] }}
                 </p>
                 <div class="challenge-tags">
-                    <span class="challenge-tag"><span class="tag-icon">&lt;/&gt;</span> Python</span>
-                    <span class="challenge-tag">Intermediate</span>
-                    <span class="challenge-tag">Arrays</span>
-                    <span class="challenge-tag"><span class="tag-icon">⏱</span> ~30 minutes</span>
+                    <span class="challenge-tag"><span class="tag-icon">&lt;/&gt;</span> {{ $todaysChallenge['language'] }}</span>
+                    <span class="challenge-tag">{{ $todaysChallenge['difficulty'] }}</span>
+                    <span class="challenge-tag">{{ $todaysChallenge['topic'] }}</span>
+                    <span class="challenge-tag"><span class="tag-icon">⏱</span> {{ $todaysChallenge['estimated_time'] }}</span>
                 </div>
-                <button class="challenge-start-btn" onclick="window.location.href='{{ route('learner.practice') }}'">
-                    Start Challenge →
-                </button>
+                @if($todaysChallenge['question_id'])
+                    <button class="challenge-start-btn" onclick="window.location.href='{{ route('learner.coding.show', ['questionId' => $todaysChallenge['question_id']]) }}'">
+                        Start Challenge →
+                    </button>
+                @else
+                    <button class="challenge-start-btn" onclick="window.location.href='{{ route('learner.customization') }}'">
+                        Customize Learning Path →
+                    </button>
+                @endif
             </div>
         </div>
 
@@ -220,61 +222,61 @@
                 <div class="language-list">
                     @forelse($proficiencies as $proficiency)
                         @php
-                            $totalProblems = 150; // You can adjust this based on your system
-                            $solvedProblems = min(floor(($proficiency->XP / 100) * $totalProblems), $totalProblems);
-                            $percentage = min(round(($solvedProblems / $totalProblems) * 100), 100);
+                            // Calculate percentage based on questions solved / total questions
+                            $solvedCount = $proficiency->solved ?? 0;
+                            $totalCount = $proficiency->total ?? 1; // Avoid division by zero
+                            $questionPercentage = $totalCount > 0 ? round(($solvedCount / $totalCount) * 100) : 0;
                             
                             // Color mapping for different languages
                             $colorMap = [
-                                'Python' => ['bg' => '#4C6EF5', 'light' => '#E3F2FD'],
-                                'JavaScript' => ['bg' => '#A855F7', 'light' => '#FFF9C4'],
-                                'Java' => ['bg' => '#F97316', 'light' => '#FFEBEE'],
-                                'C++' => ['bg' => '#EC4899', 'light' => '#E1F5FE'],
-                                'C#' => ['bg' => '#8B5CF6', 'light' => '#ECEFF1'],
-                                'Ruby' => ['bg' => '#CC342D', 'light' => '#FFEBEE'],
-                                'PHP' => ['bg' => '#6366F1', 'light' => '#EDE7F6'],
-                                'C' => ['bg' => '#EF4444', 'light' => '#E0F7FA'],
+                                'Python' => '#4C6EF5',
+                                'JavaScript' => '#F59E0B',
+                                'Java' => '#F97316',
+                                'C++' => '#FF6B35',
+                                'C#' => '#8B5CF6',
+                                'Ruby' => '#CC342D',
+                                'PHP' => '#6366F1',
+                                'C' => '#EF4444',
                             ];
                             
-                            $colors = $colorMap[$proficiency->language] ?? ['bg' => '#6B7280', 'light' => '#F3F4F6'];
+                            $color = $colorMap[$proficiency->language] ?? '#6B7280';
                         @endphp
                         
-                        <div class="language-item">
-                            <div class="language-item-header">
-                                <div class="language-icon" style="background: linear-gradient(135deg, {{ $colors['bg'] }} 0%, {{ $colors['bg'] }}dd 100%);">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                                        <polyline points="16 18 22 12 16 6"></polyline>
-                                        <polyline points="8 6 2 12 8 18"></polyline>
-                                    </svg>
+                        <div class="language-item" style="margin-bottom: 20px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 16px;">
+                                    <div style="width: 36px; height: 36px; background: {{ $color }}; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                                            <polyline points="16 18 22 12 16 6"></polyline>
+                                            <polyline points="8 6 2 12 8 18"></polyline>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 style="font-size: 18px; font-weight: 700; color: #1F2937; margin: 0 0 2px 0;">{{ $proficiency->language }}</h4>
+                                        <p style="font-size: 12px; color: #6B7280; margin: 0;">{{ $proficiency->solved }}/{{ $proficiency->total }} problems</p>
+                                    </div>
                                 </div>
-                                <div class="language-details">
-                                    <div class="language-name">{{ $proficiency->language }}</div>
-                                    <div class="language-problems">{{ $solvedProblems }}/{{ $totalProblems }} problems</div>
-                                </div>
-                                <div class="language-percentage" style="background-color: {{ $colors['bg'] }};">
-                                    {{ $percentage }}%
+                                <div style="background: {{ $color }}; color: white; padding: 5px 15px; border-radius: 20px; font-size: 16px; font-weight: 500;">
+                                    {{ $questionPercentage }}%
                                 </div>
                             </div>
-                            <div class="language-progress-bar-container">
-                                <div class="language-progress-bar" style="width: {{ $percentage }}%; background: linear-gradient(90deg, {{ $colors['bg'] }} 0%, {{ $colors['bg'] }}cc 100%);"></div>
+                            <div style="width: 100%; height: 12px; background: #E5E7EB; border-radius: 12px; overflow: hidden;">
+                                <div style="height: 100%; background: {{ $color }}; border-radius: 12px; width: {{ $questionPercentage }}%; transition: width 0.5s ease;"></div>
                             </div>
                         </div>
                     @empty
-                        <div class="language-item empty">
-                            <div class="empty-state">
-                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                                </svg>
-                                <p class="empty-text">No languages selected yet</p>
-                                <p class="empty-subtext">Customize your learning path to get started</p>
-                            </div>
+                        <div style="text-align: center; padding: 40px 20px;">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" style="margin: 0 auto 16px;">
+                                <polyline points="16 18 22 12 16 6"></polyline>
+                                <polyline points="8 6 2 12 8 18"></polyline>
+                            </svg>
+                            <h4 style="font-size: 16px; font-weight: 600; color: #4B5563; margin-bottom: 8px;">No Languages Selected</h4>
+                            <p style="font-size: 14px; color: #9CA3AF;">Start your coding journey by selecting languages</p>
                         </div>
                     @endforelse
                 </div>
                 
-                <button class="add-language-btn" onclick="window.location.href='{{ route('learner.customization') }}'">
+                <button onclick="window.location.href='{{ route('learner.customization') }}'" style="width: 100%; padding: 16px; background: white; border: 2px dashed #D1D5DB; border-radius: 12px; color: #6B7280; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease; margin-top: 20px;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="5" x2="12" y2="19"></line>
                         <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -444,6 +446,12 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: {
+                    duration: 0
+                },
+                hover: {
+                    mode: null
+                },
                 plugins: {
                     legend: {
                         display: false

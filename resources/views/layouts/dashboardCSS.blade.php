@@ -305,6 +305,8 @@
         padding: 28px;
         border-radius: 16px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
     }
 
     .card-header {
@@ -312,17 +314,7 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 24px;
-    }
-
-    .card-title {
-        font-size: 20px;
-        font-weight: 700;
-        color: #1F2937;
-    }
-
-    .card-subtitle {
-        font-size: 14px;
-        color: #6B7280;
+        flex-shrink: 0;
     }
 
     .weekly-total {
@@ -350,8 +342,11 @@
     }
 
     .chart-container {
-        height: 280px;
+        height: 350px;
+        max-height: 350px;
         position: relative;
+        margin-bottom: 20px;
+        flex-shrink: 0;
     }
 
     /* Action Cards */
@@ -376,7 +371,7 @@
         margin-bottom: 28px;
     }
 
-    .language-progress-icon {
+    /**.language-progress-icon {
         width: 64px;
         height: 64px;
         background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%);
@@ -386,7 +381,7 @@
         justify-content: center;
         color: white;
         flex-shrink: 0;
-    }
+    }*/
 
     .language-progress-title {
         font-size: 22px;

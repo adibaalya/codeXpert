@@ -10,27 +10,37 @@ use App\Models\Learner;
 use App\Models\Question;
 use App\Models\UserProficiency;
 use App\Models\Hackathon;
+use App\Services\AIPersonalizedChallengeService;
 use Carbon\Carbon;
 
 class LearnerDashboardController extends Controller
 {
+    protected $aiChallengeService;
+    
+    public function __construct(AIPersonalizedChallengeService $aiChallengeService)
+    {
+        $this->aiChallengeService = $aiChallengeService;
+    }
+    
     public function index()
     {
         $learner = Auth::guard('learner')->user();
         
-        // Get statistics for stat cards
-        $currentLevel = $this->calculateLevel($learner->totalPoint ?? 0);
-        $xpPoints = $learner->totalPoint ?? 0;
+        // Use Quadratic Curve leveling system (SAME AS LEARNER MODEL)
+        $levelProgress = $learner->getLevelProgress();
+        $currentLevel = $levelProgress['current_level'];
+        $xpPoints = $levelProgress['current_xp'];
+        $nextLevelXP = $levelProgress['xp_for_next_level'];
+        $xpProgress = $levelProgress['percentage'];
+        
         $currentStreak = $learner->streak ?? 0;
         $achievements = $this->getAchievementsCount($learner);
         
-        // Calculate XP needed for next level
-        $nextLevelXP = $this->getNextLevelXP($currentLevel);
-        $currentLevelXP = $this->getLevelXP($currentLevel);
-        $xpProgress = $nextLevelXP > 0 ? (($xpPoints - $currentLevelXP) / ($nextLevelXP - $currentLevelXP)) * 100 : 0;
-        
         // Get weekly practice data
         $weeklyData = $this->getWeeklyPracticeData($learner);
+        
+        // Get AI-powered personalized challenge
+        $todaysChallenge = $this->aiChallengeService->generatePersonalizedChallenge($learner);
         
         // Get recommended questions (limit 3 for display)
         $recommendedQuestions = $this->getRecommendedQuestions($learner, 3);
@@ -38,8 +48,58 @@ class LearnerDashboardController extends Controller
         // Get recent activities
         $recentActivities = $this->getRecentActivities($learner, 4);
         
-        // Get proficiency data
-        $proficiencies = $learner->userProficiencies;
+        // Get proficiency data with XP-based progress (NOT question count)
+        $proficiencies = $learner->userProficiencies->map(function($prof) use ($learner) {
+            // XP thresholds for language proficiency levels
+            // Beginner: 0-29 XP, Intermediate: 30-69 XP, Advanced: 70+ XP
+            $maxXP = 100; // Max XP to consider for progress bar (100%)
+            
+            // Current XP for this language
+            $currentXP = $prof->XP;
+            
+            // Calculate percentage based on XP (0-100%)
+            $percentage = min(round(($currentXP / $maxXP) * 100), 100);
+            
+            // Determine level based on XP
+            if ($currentXP < 30) {
+                $level = 'Beginner';
+            } elseif ($currentXP < 70) {
+                $level = 'Intermediate';
+            } else {
+                $level = 'Advanced';
+            }
+            
+            // Count actual questions solved for display (optional info)
+            $solvedProblems = DB::table('attempts')
+                ->join('questions', 'attempts.question_ID', '=', 'questions.question_ID')
+                ->where('attempts.learner_ID', $learner->learner_ID)
+                ->where('questions.language', $prof->language)
+                ->where('attempts.accuracyScore', '>', 0) // Any XP earned
+                ->distinct('attempts.question_ID')
+                ->count('attempts.question_ID');
+            
+            // Count total available questions for this language
+            $totalProblems = DB::table('questions')
+                ->where('language', $prof->language)
+                ->where('status', 'Approved')
+                ->where('questionCategory', 'learnerPractice')
+                ->count();
+            
+            // If no questions available, show fallback
+            if ($totalProblems == 0) {
+                $totalProblems = 150;
+            }
+            
+            return (object)[
+                'language' => $prof->language,
+                'level' => $level,
+                'XP' => $currentXP,
+                'maxXP' => $maxXP,
+                'percentage' => $percentage,
+                'solved' => $solvedProblems,
+                'total' => $totalProblems
+            ];
+        });
         
         // Get hackathons (limit 2 for display)
         $hackathons = $this->getHackathons(2);
@@ -56,6 +116,7 @@ class LearnerDashboardController extends Controller
             'xpProgress',
             'nextLevelXP',
             'weeklyData',
+            'todaysChallenge',
             'recommendedQuestions',
             'recentActivities',
             'proficiencies',

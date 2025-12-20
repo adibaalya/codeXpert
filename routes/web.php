@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\SocialLoginController;
 use App\Http\Controllers\Learner\CustomizationPathController;
 use App\Http\Controllers\Learner\LearnerDashboardController;
+use App\Http\Controllers\Learner\CodingQuestionController;
 use App\Http\Controllers\Reviewer\CompetencyTestController;
 use App\Http\Controllers\Reviewer\ReviewerDashboardController;
 use App\Http\Controllers\Reviewer\QuestionGeneratorController;
@@ -35,10 +36,56 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
     // Dashboard
     Route::get('/dashboard', [LearnerDashboardController::class, 'index'])->name('learner.dashboard');
     
-    // Practice (placeholder routes - you'll need to implement these)
+    // Practice
     Route::get('/practice', function() {
-        return view('learner.practice');
+        $learner = auth()->guard('learner')->user();
+        
+        // Get all available languages from questions table where questionCategory is 'learnerPractice'
+        $languages = \DB::table('questions')
+            ->where('status', 'Approved')
+            ->where('questionCategory', 'learnerPractice')
+            ->distinct()
+            ->pluck('language');
+        
+        return view('learner.practice', compact('learner', 'languages'));
     })->name('learner.practice');
+    
+    // API endpoint to get available topics based on language and level
+    Route::get('/practice/topics', function(Illuminate\Http\Request $request) {
+        $language = $request->input('language');
+        $level = $request->input('level');
+        
+        $topics = \DB::table('questions')
+            ->where('status', 'Approved')
+            ->where('questionCategory', 'learnerPractice')
+            ->where('language', $language)
+            ->where('level', $level)
+            ->whereNotNull('chapter')
+            ->distinct()
+            ->pluck('chapter');
+        
+        return response()->json(['topics' => $topics]);
+    })->name('learner.practice.topics');
+    
+    // Coding Question Routes
+    Route::get('/coding/question/{questionId}', [CodingQuestionController::class, 'show'])->name('learner.coding.show');
+    Route::get('/coding/random', [CodingQuestionController::class, 'random'])->name('learner.coding.random');
+    Route::get('/coding/suggested', [CodingQuestionController::class, 'suggested'])->name('learner.coding.suggested');
+    
+    // Code Execution Routes (for run and submit)
+    Route::post('/coding/run', [\App\Http\Controllers\CodeExecutionController::class, 'runCode'])->name('learner.coding.run');
+    Route::post('/coding/submit', [\App\Http\Controllers\CodeExecutionController::class, 'submitCode'])->name('learner.coding.submit');
+    Route::post('/coding/rate', [\App\Http\Controllers\CodeExecutionController::class, 'rateQuestion'])->name('learner.coding.rate');
+    Route::get('/coding/result', function() {
+        $submission = session('coding_submission');
+        
+        if (!$submission) {
+            return redirect()->route('learner.practice')->with('error', 'No submission found.');
+        }
+        
+        // Use the same result view as competency test, but adapt it for learners
+        return view('learner.coding-result', compact('submission'));
+    })->name('learner.coding.result');
     
     // Progress (placeholder routes - you'll need to implement these)
     Route::get('/progress', function() {
@@ -124,10 +171,8 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
     Route::get('/profile', function() {
         $learner = auth()->guard('learner')->user();
         
-        // Calculate current level based on XP (100 XP per level)
-        $currentLevel = floor($learner->totalPoint / 100);
-        $xpPoints = $learner->totalPoint;
-        $nextLevelXP = ($currentLevel + 1) * 100;
+        // Use Quadratic Curve leveling system
+        $levelProgress = $learner->getLevelProgress();
         
         // Calculate global rank
         $globalRank = \App\Models\Learner::where('totalPoint', '>', $learner->totalPoint)->count() + 1;
@@ -154,20 +199,50 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
         $minutes = $totalMinutes % 60;
         $totalTimeCoding = "{$hours}h {$minutes}m";
         
-        // Prepare learner object with additional data
-        $learner->currentLevel = $currentLevel;
-        $learner->xpPoints = $xpPoints;
-        $learner->nextLevelXP = $nextLevelXP;
+        // Prepare learner object with additional data using Quadratic Curve
+        $learner->currentLevel = $levelProgress['current_level'];
+        $learner->xpPoints = $levelProgress['current_xp'];
+        $learner->nextLevelXP = $levelProgress['xp_for_next_level'];
+        $learner->xpProgress = $levelProgress['xp_progress'];
+        $learner->xpGap = $levelProgress['xp_gap'];
+        $learner->levelPercentage = $levelProgress['percentage'];
         $learner->globalRank = $globalRank;
         $learner->memberSince = $memberSince;
         $learner->challengesCompleted = $challengesCompleted;
         $learner->successRate = $successRate;
         $learner->totalTimeCoding = $totalTimeCoding;
         
-        // Format proficiencies for display
-        $learner->proficiencies = $proficiencies->map(function($prof) {
-            $totalProblems = 100;
-            $solvedProblems = min(floor(($prof->XP / 100) * $totalProblems), $totalProblems);
+        // Format proficiencies for display - XP-based progress
+        $learner->proficiencies = $proficiencies->map(function($prof) use ($learner) {
+            // XP thresholds for language proficiency levels
+            $maxXP = 100; // Max XP to consider for progress bar (100%)
+            
+            // Current XP for this language
+            $currentXP = $prof->XP;
+            
+            // Calculate percentage based on XP (0-100%)
+            $percentage = min(round(($currentXP / $maxXP) * 100), 100);
+            
+            // Count actual questions solved for display
+            $solvedProblems = \DB::table('attempts')
+                ->join('questions', 'attempts.question_ID', '=', 'questions.question_ID')
+                ->where('attempts.learner_ID', $learner->learner_ID)
+                ->where('questions.language', $prof->language)
+                ->where('attempts.accuracyScore', '>', 0) // Any XP earned
+                ->distinct('attempts.question_ID')
+                ->count('attempts.question_ID');
+            
+            // Count total available questions for this language
+            $totalProblems = \DB::table('questions')
+                ->where('language', $prof->language)
+                ->where('status', 'Approved')
+                ->where('questionCategory', 'learnerPractice')
+                ->count();
+            
+            // If no questions available, show 0/150 as fallback
+            if ($totalProblems == 0) {
+                $totalProblems = 150;
+            }
             
             // Determine level based on XP
             if ($prof->XP < 30) {
@@ -181,6 +256,9 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
             return [
                 'language' => $prof->language,
                 'level' => $level,
+                'XP' => $currentXP,
+                'maxXP' => $maxXP,
+                'percentage' => $percentage,
                 'solved' => $solvedProblems,
                 'total' => $totalProblems,
                 'xp' => $prof->XP

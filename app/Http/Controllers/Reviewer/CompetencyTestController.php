@@ -7,9 +7,20 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Question;
 use App\Models\CompetencyTestResult;
+use App\Services\CodeExecutionService;
+use App\Services\AICodeFeedbackService;
 
 class CompetencyTestController extends Controller
 {
+    protected $codeExecutionService;
+    protected $aiFeedbackService;
+
+    public function __construct(CodeExecutionService $codeExecutionService, AICodeFeedbackService $aiFeedbackService)
+    {
+        $this->codeExecutionService = $codeExecutionService;
+        $this->aiFeedbackService = $aiFeedbackService;
+    }
+
     public function chooseLanguage()
     {
         // Get distinct languages from approved competency test questions
@@ -363,10 +374,10 @@ class CompetencyTestController extends Controller
         ]);
 
         $code = $request->solution;
-        $language = strtolower(session('test_language'));
+        $language = session('test_language');
         $question = Question::find($request->question_id);
 
-        // Get ONLY the sample test case (first test case) - this is visible to the user
+        // Get ALL test cases
         $testCases = is_string($question->input) ? json_decode($question->input, true) : $question->input;
         $expectedOutputs = is_string($question->expected_output) ? json_decode($question->expected_output, true) : $question->expected_output;
 
@@ -377,105 +388,119 @@ class CompetencyTestController extends Controller
             ], 200);
         }
 
-        // Only use the first test case (sample test case - visible to user)
-        $sampleInput = is_array($testCases[0]) ? json_encode($testCases[0]) : (string)$testCases[0];
-        $sampleExpectedOutput = isset($expectedOutputs[0]) ? 
-            (is_array($expectedOutputs[0]) ? json_encode($expectedOutputs[0]) : (string)$expectedOutputs[0]) 
-            : '';
+        // Get function name from question (stored in grading_details)
+        $gradingDetails = is_string($question->grading_details) ? json_decode($question->grading_details, true) : $question->grading_details;
+        $functionName = $gradingDetails['function_name'] ?? null;
 
-        try {
-            $result = $this->executeCodeInDocker($code, $language, $sampleInput);
-            
-            if (!$result['success']) {
-                return response()->json([
-                    'success' => false,
+        // Run code against ALL test cases - JUST EXECUTE, DON'T VALIDATE
+        $totalTests = count($testCases);
+        $testResults = [];
+        $hasError = false;
+        $errorMessage = '';
+
+        \Log::info('=== RUN CODE DEBUG ===', [
+            'total_test_cases' => $totalTests,
+            'test_cases_raw' => $testCases
+        ]);
+
+        foreach ($testCases as $index => $testCase) {
+            try {
+                // EXTRACT THE ACTUAL INPUT from nested structure
+                $actualInput = null;
+                
+                if (is_array($testCase)) {
+                    // Nested structure - extract the 'input' field
+                    $actualInput = $testCase['input'] ?? $testCase;
+                } else {
+                    // Direct input
+                    $actualInput = $testCase;
+                }
+                
+                \Log::info("Processing test case #" . ($index + 1), [
+                    'index' => $index,
+                    'raw_test_case' => $testCase,
+                    'extracted_input' => $actualInput,
+                    'input_length' => is_string($actualInput) ? strlen($actualInput) : 'not string'
+                ]);
+                
+                // Execute code for this test case
+                $result = $this->codeExecutionService->executeCode(
+                    $code, 
+                    $language, 
+                    $actualInput,
+                    $functionName
+                );
+                
+                \Log::info("Execution result for test case #" . ($index + 1), [
+                    'success' => $result['success'],
                     'output' => $result['output'],
-                    'sampleInput' => $sampleInput,
-                    'expectedOutput' => $sampleExpectedOutput
-                ], 200);
-            }
+                    'output_length' => strlen($result['output'])
+                ]);
+                
+                if (!$result['success']) {
+                    // Execution error - stop testing and show error
+                    $hasError = true;
+                    $errorMessage = $result['output'];
+                    break;
+                }
 
-            // Show the output with sample input and expected output (visible to user)
-            return response()->json([
-                'success' => true,
-                'output' => $result['output'],
-                'sampleInput' => $sampleInput,
-                'expectedOutput' => $sampleExpectedOutput
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'output' => 'Error: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    private function executeCodeInDocker($code, $language, $input = '')
-    {
-        try {
-            // Ensure input is a string
-            $inputString = is_array($input) ? json_encode($input) : (string)$input;
-            
-            // Map language names to script-friendly names
-            $languageMap = [
-                'python' => 'python',
-                'java' => 'java',
-                'javascript' => 'javascript',
-                'c++' => 'cpp',
-                'c' => 'c',
-                'php' => 'php',
-                'c#' => 'csharp'
-            ];
-
-            $mappedLanguage = $languageMap[$language] ?? $language;
-
-            // Execute code using Docker with Process
-            $process = new \Symfony\Component\Process\Process([
-                'docker', 'run', '--rm',
-                '--memory=128m',
-                '--cpus=0.5',
-                '--network=none',
-                '--pids-limit=50',
-                '-e', "USER_CODE=" . $code,
-                '-e', "LANGUAGE=" . $mappedLanguage,
-                '-e', "TEST_INPUT=" . $inputString,
-                'code-sandbox'
-            ]);
-
-            // Set timeout (10 seconds)
-            $process->setTimeout(10);
-            
-            // Run the process
-            $process->run();
-
-            $output = $process->getOutput();
-            $error = $process->getErrorOutput();
-
-            // If there's an error, return it
-            if ($process->getExitCode() !== 0 && $error) {
-                return [
-                    'success' => false,
-                    'output' => "Error:\n" . $error
+                $actualOutput = trim($result['output']);
+                
+                // Format input for display (clean and readable)
+                $displayInput = $actualInput;
+                if (is_array($displayInput)) {
+                    $displayInput = json_encode($displayInput, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                } else {
+                    // Remove markdown code blocks
+                    $displayInput = preg_replace('/```[\w]*\n?/', '', $displayInput);
+                    $displayInput = preg_replace('/```/', '', $displayInput);
+                    $displayInput = trim($displayInput);
+                }
+                
+                // Store test results - ONLY INPUT AND OUTPUT (no validation)
+                $testResults[] = [
+                    'test_number' => $index + 1,
+                    'input' => $displayInput,
+                    'output' => $actualOutput
                 ];
+
+                \Log::info("Added test result #" . ($index + 1), [
+                    'test_number' => $index + 1,
+                    'input_preview' => substr($displayInput, 0, 100),
+                    'output_preview' => substr($actualOutput, 0, 100)
+                ]);
+
+            } catch (\Exception $e) {
+                $hasError = true;
+                $errorMessage = 'Error: ' . $e->getMessage();
+                \Log::error("Exception in test case #" . ($index + 1), [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                break;
             }
-
-            return [
-                'success' => true,
-                'output' => $output ?: "Code executed successfully with no output."
-            ];
-
-        } catch (\Symfony\Component\Process\Exception\ProcessTimedOutException $e) {
-            return [
-                'success' => false,
-                'output' => 'Error: Execution timed out (10 seconds limit). Please optimize your code.'
-            ];
-        } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'output' => 'Error: ' . $e->getMessage()
-            ];
         }
+
+        \Log::info('=== FINAL TEST RESULTS ===', [
+            'total_results' => count($testResults),
+            'results' => $testResults
+        ]);
+
+        // If there was an error, return it
+        if ($hasError) {
+            return response()->json([
+                'success' => false,
+                'output' => $errorMessage
+            ], 200);
+        }
+
+        // Return results - SIMPLE FORMAT (no validation, no pass/fail)
+        return response()->json([
+            'success' => true,
+            'totalTests' => $totalTests,
+            'testResults' => $testResults,
+            'message' => "Code executed successfully on {$totalTests} test case(s)"
+        ]);
     }
 
     public function submitCode(Request $request)
@@ -486,7 +511,7 @@ class CompetencyTestController extends Controller
         ]);
 
         $code = $request->solution;
-        $language = strtolower(session('test_language'));
+        $language = session('test_language');
         $question = Question::find($request->question_id);
 
         // Get ALL test cases from the database (sample + hidden test cases)
@@ -497,47 +522,92 @@ class CompetencyTestController extends Controller
             return redirect()->back()->with('error', 'No test cases available for this question.');
         }
 
-        // Run code against ALL test cases (sample + hidden)
+        // Get function name from question (stored in grading_details)
+        $gradingDetails = is_string($question->grading_details) ? json_decode($question->grading_details, true) : $question->grading_details;
+        $functionName = $gradingDetails['function_name'] ?? null;
+
+        // Run code against ALL test cases
         $totalTests = count($testCases);
         $passedTests = 0;
         $testResults = [];
 
-        foreach ($testCases as $index => $input) {
-            $expectedOutput = isset($expectedOutputs[$index]) ? 
-                (is_array($expectedOutputs[$index]) ? json_encode($expectedOutputs[$index]) : (string)$expectedOutputs[$index]) 
-                : '';
+        foreach ($testCases as $index => $testCase) {
+            // EXTRACT THE ACTUAL INPUT from nested structure (same as runCode)
+            $actualInput = null;
+            if (is_array($testCase)) {
+                // Nested structure - extract the 'input' field
+                $actualInput = $testCase['input'] ?? $testCase;
+            } else {
+                // Direct input
+                $actualInput = $testCase;
+            }
             
-            // Convert input to string if needed
-            $inputString = is_array($input) ? json_encode($input) : (string)$input;
+            // Get expected output for this test case
+            $expectedOutput = isset($expectedOutputs[$index]) ? $expectedOutputs[$index] : '';
             
-            $result = $this->executeCodeInDocker($code, $language, $inputString);
+            // Extract expected output from nested structure if needed
+            if (is_array($expectedOutput) && isset($expectedOutput['output'])) {
+                $expectedOutput = $expectedOutput['output'];
+            }
+            
+            // Use the new CodeExecutionService with driver script logic
+            $result = $this->codeExecutionService->executeCode(
+                $code,
+                $language,
+                $actualInput,
+                $functionName
+            );
             
             if ($result['success']) {
                 $actualOutput = trim($result['output']);
-                $expectedOutput = trim($expectedOutput);
-                $passed = $actualOutput === $expectedOutput;
+                $expectedOutputString = is_array($expectedOutput) ? json_encode($expectedOutput) : (string)$expectedOutput;
+                
+                // Clean expected output - remove markdown backticks
+                $expectedOutputString = str_replace('`', '', $expectedOutputString);
+                $expectedOutputString = trim($expectedOutputString);
+                
+                $passed = $actualOutput === $expectedOutputString;
                 
                 if ($passed) {
                     $passedTests++;
                 }
 
-                // Store test results but mark hidden test cases
+                // Format input for display (clean and readable)
+                $displayInput = $actualInput;
+                if (is_array($displayInput)) {
+                    $displayInput = json_encode($displayInput, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                } else {
+                    // Remove markdown code blocks
+                    $displayInput = preg_replace('/```[\w]*\n?/', '', $displayInput);
+                    $displayInput = preg_replace('/```/', '', $displayInput);
+                    $displayInput = trim($displayInput);
+                }
+
+                // SHOW ALL TEST CASES (not hidden)
                 $testResults[] = [
                     'test_number' => $index + 1,
-                    'is_sample' => $index === 0, // First test case is the sample
-                    'input' => $index === 0 ? $inputString : 'Hidden', // Hide input for hidden test cases
-                    'expected' => $index === 0 ? $expectedOutput : 'Hidden', // Hide expected output for hidden test cases
-                    'actual' => $index === 0 ? $actualOutput : ($passed ? 'Passed' : 'Failed'), // Hide actual output for hidden test cases
+                    'is_sample' => $index === 0, // First test case is marked as sample
+                    'input' => $displayInput, // Show input for ALL test cases
+                    'expected' => $expectedOutputString, // Show expected for ALL test cases (cleaned)
+                    'actual' => $actualOutput, // Show actual output for ALL test cases
                     'passed' => $passed
                 ];
             } else {
                 // If execution failed, mark as failed
+                $displayInput = is_array($actualInput) ? json_encode($actualInput, JSON_PRETTY_PRINT) : $actualInput;
+                // Remove markdown code blocks
+                if (is_string($displayInput)) {
+                    $displayInput = preg_replace('/```[\w]*\n?/', '', $displayInput);
+                    $displayInput = preg_replace('/```/', '', $displayInput);
+                    $displayInput = trim($displayInput);
+                }
+                
                 $testResults[] = [
                     'test_number' => $index + 1,
                     'is_sample' => $index === 0,
-                    'input' => $index === 0 ? $inputString : 'Hidden',
-                    'expected' => $index === 0 ? $expectedOutput : 'Hidden',
-                    'actual' => $index === 0 ? $result['output'] : 'Failed',
+                    'input' => $displayInput, // Show input even on failure
+                    'expected' => is_array($expectedOutput) ? json_encode($expectedOutput) : $expectedOutput,
+                    'actual' => $result['output'], // Show error message
                     'passed' => false
                 ];
             }
@@ -547,6 +617,14 @@ class CompetencyTestController extends Controller
         $scorePercentage = ($passedTests / $totalTests) * 100;
         $questionScore = ($scorePercentage / 100) * 10; // Scale to 10 points
 
+        // Generate AI feedback for the code submission
+        $aiFeedback = $this->aiFeedbackService->generateFeedback(
+            $code,
+            $language,
+            $question->title ?? 'Coding Challenge',
+            $testResults
+        );
+
         // Store the solution and test results
         $codeSolutions = session('code_solutions', []);
         $codeSolutions[$request->question_id] = [
@@ -554,7 +632,8 @@ class CompetencyTestController extends Controller
             'score' => $questionScore,
             'passed_tests' => $passedTests,
             'total_tests' => $totalTests,
-            'test_results' => $testResults
+            'test_results' => $testResults,
+            'ai_feedback' => $aiFeedback
         ];
         session()->put('code_solutions', $codeSolutions);
 
@@ -565,7 +644,8 @@ class CompetencyTestController extends Controller
             'passed_tests' => $passedTests,
             'total_tests' => $totalTests,
             'test_results' => $testResults,
-            'score' => $questionScore
+            'score' => $questionScore,
+            'ai_feedback' => $aiFeedback
         ]);
 
         // Increment the index

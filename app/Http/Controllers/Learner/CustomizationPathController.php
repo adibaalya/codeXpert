@@ -26,11 +26,11 @@ class CustomizationPathController extends Controller
             'JavaScript' => 'yellow',
             'Python' => 'blue',
             'C' => 'blue',
-            'C++' => 'blue',
-            'SQL' => 'purple',
+            'C++' => 'purple',
+            'SQL' => 'teal',
         ];
 
-        return view('learner.customizationPath', compact('addedLanguages', 'availableLanguages'));
+        return view('learner.customizationPath', compact('learner', 'addedLanguages', 'availableLanguages'));
     }
 
     /**
@@ -86,7 +86,7 @@ class CustomizationPathController extends Controller
                 ->with('error', 'Please add at least one language before continuing.');
         }
 
-        return redirect('/dashboard');
+        return redirect()->route('learner.dashboard');
     }
 
     /**
@@ -100,13 +100,20 @@ class CustomizationPathController extends Controller
             'language' => 'required|string|max:30',
         ]);
 
-        UserProficiency::where('learner_ID', $learner->learner_ID)
+        $deleted = UserProficiency::where('learner_ID', $learner->learner_ID)
             ->where('language', $request->language)
             ->delete();
 
+        if ($deleted) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Language removed successfully'
+            ]);
+        }
+
         return response()->json([
-            'success' => true,
-            'message' => 'Language removed successfully'
-        ]);
+            'success' => false,
+            'message' => 'Language not found or already removed'
+        ], 404);
     }
 }

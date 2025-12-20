@@ -186,6 +186,79 @@
                 </div>
             </div>
 
+            <!-- AI Feedback Section for Code Solutions -->
+            @if($result->code_solutions && is_array($result->code_solutions))
+                @foreach($result->code_solutions as $questionId => $solution)
+                    @if(isset($solution['ai_feedback']))
+                    <div style="margin-top: 30px;">
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                                <svg width="28" height="28" fill="white" viewBox="0 0 20 20">
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                </svg>
+                                <h3 style="color: white; font-size: 20px; font-weight: 700; margin: 0;">AI Code Feedback - Question {{ $loop->iteration }}</h3>
+                            </div>
+                            <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">
+                                Score: {{ round($solution['score'], 1) }}/10 | Test Cases: {{ $solution['passed_tests'] }}/{{ $solution['total_tests'] }} passed
+                            </p>
+                        </div>
+
+                        <!-- Correctness Section -->
+                        @if(!empty($solution['ai_feedback']['correctness']))
+                        <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 2px solid #E5E7EB;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                                <svg width="24" height="24" fill="#3B82F6" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                <h4 style="color: #1F2937; font-size: 16px; font-weight: 600; margin: 0;">Correctness</h4>
+                            </div>
+                            <div style="color: #4B5563; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">{{ $solution['ai_feedback']['correctness'] }}</div>
+                        </div>
+                        @endif
+
+                        <!-- Style & Readability Section -->
+                        @if(!empty($solution['ai_feedback']['style']))
+                        <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 2px solid #E5E7EB;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                                <svg width="24" height="24" fill="#8B5CF6" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                                </svg>
+                                <h4 style="color: #1F2937; font-size: 16px; font-weight: 600; margin: 0;">Style & Readability</h4>
+                            </div>
+                            <div style="color: #4B5563; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">{{ $solution['ai_feedback']['style'] }}</div>
+                        </div>
+                        @endif
+
+                        <!-- Error Analysis Section -->
+                        @if(!empty($solution['ai_feedback']['errors']))
+                        <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 2px solid #E5E7EB;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                                <svg width="24" height="24" fill="#F59E0B" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                </svg>
+                                <h4 style="color: #1F2937; font-size: 16px; font-weight: 600; margin: 0;">Error Analysis</h4>
+                            </div>
+                            <div style="color: #4B5563; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">{{ $solution['ai_feedback']['errors'] }}</div>
+                        </div>
+                        @endif
+
+                        <!-- Suggestions Section -->
+                        @if(!empty($solution['ai_feedback']['suggestions']))
+                        <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 2px solid #E5E7EB;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                                <svg width="24" height="24" fill="#10B981" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                                </svg>
+                                <h4 style="color: #1F2937; font-size: 16px; font-weight: 600; margin: 0;">Suggestions</h4>
+                            </div>
+                            <div style="color: #4B5563; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">{{ $solution['ai_feedback']['suggestions'] }}</div>
+                        </div>
+                        @endif
+                    </div>
+                    @endif
+                @endforeach
+            @endif
+
             <!-- Action Buttons -->
             <div class="result-actions">
                 @if(!$result->passed)
