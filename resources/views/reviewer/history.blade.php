@@ -12,7 +12,7 @@
     <!-- Header -->
     <div class="header">
         <div class="logo-container">
-            <img class="logo" src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+            <img class="logo" src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
             <span class="logo-text">CodeXpert</span>
         </div>
         
@@ -21,7 +21,7 @@
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.dashboard') }}'">Dashboard</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.review') }}'">Review</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.generate') }}'">Generate</button>
-                <button class="nav-item active">History</button>
+                <button class="nav-item active-reviewer">History</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.profile') }}'">Profile</button>
             </nav>
 
@@ -30,13 +30,13 @@
                     <div class="user-name">{{ $reviewer->username ?? 'Dr. Sarah Wilson' }}</div>
                     <div class="user-role">Reviewer</div>
                 </div>
-                <div class="user-avatar" onclick="toggleUserMenu(event)">
+                <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
                     {{ strtoupper(substr($reviewer->username ?? 'DS', 0, 1)) }}{{ strtoupper(substr($reviewer->username ?? 'DS', 1, 1) ?? '') }}
                 </div>
                 
                 <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
-                    <div class="user-dropdown-header">
+                    <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
                             {{ strtoupper(substr($reviewer->username, 0, 2)) }}
                         </div>
@@ -173,7 +173,7 @@
     <div class="modal-overlay" id="modalOverlay" onclick="closeModalOnOverlay(event)">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <h2 class="modal-title-main">Description</h2>
+                <h2 class="modal-title-main" id="modalTitle">Question Title</h2>
                 <button class="close-btn" onclick="closeModal()">✕</button>
             </div>
             <div class="modal-body">
@@ -206,6 +206,9 @@
         function openModal(questionId) {
             const question = questionsData[questionId];
             if (!question) return;
+
+            // Set the modal title to the question title
+            document.getElementById('modalTitle').textContent = question.title || 'Untitled Question';
 
             // Format and display the content
             const contentDiv = document.getElementById('modalContentFormatted');

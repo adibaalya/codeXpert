@@ -7,7 +7,13 @@
 
     body {
         font-family: 'Inter', sans-serif;
-        background: #FEF8F5;
+        background: #FFF9F9;
+        min-height: 100vh;
+    }
+
+    .reviewer-body {
+        font-family: 'Inter', sans-serif;
+        background:rgb(248, 244, 253);
         min-height: 100vh;
     }
 
@@ -23,9 +29,20 @@
     }
 
     .welcome-title {
-        font-size: 36px;
+        font-size: 42px;
         font-weight: 800;
-        background-image: linear-gradient(to right,rgb(250, 90, 75) 30%,rgb(251, 192, 90));
+        background-image: linear-gradient(135deg, rgb(235, 51, 73) 0%, rgb(244, 92, 67) 50%, rgb(235, 51, 73) 100%);
+        -webkit-background-clip: text; 
+        background-clip: text; 
+        -webkit-text-fill-color: transparent; 
+        color: transparent; 
+        margin-bottom: 8px;
+    }
+
+    .welcome-title-reviewer {
+        font-size: 42px;
+        font-weight: 800;
+        background-image: linear-gradient(135deg,rgb(92, 33, 195) 0%,rgb(118, 47, 183) 50%,rgb(120, 33, 201) 100%);
         -webkit-background-clip: text; 
         background-clip: text; 
         -webkit-text-fill-color: transparent; 
@@ -270,7 +287,7 @@
     }
 
     .challenge-start-btn {
-        background: linear-gradient(135deg, #FF6B35, #FFB83D);
+        background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%);
         color: white;
         padding: 14px 32px;
         border: none;
@@ -541,7 +558,7 @@
     }
 
     .review-item:hover {
-        border-color: #FF6B35;
+        border-color: #7C3AED;
         background: white;
     }
 
@@ -603,7 +620,7 @@
     .review-btn {
         width: 100%;
         padding: 10px;
-        background: linear-gradient(to right, #FF6B35, #FFB83D);
+        background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
         border: none;
         border-radius: 8px;
         color: white;
@@ -615,7 +632,7 @@
 
     .review-btn:hover {
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+        box-shadow: 0 4px 12px rgba(164, 53, 255, 0.3);
     }
 
     /* Recent Activity */
@@ -760,7 +777,7 @@
 
     .action-card.primary {
         border-color: rgba(255, 107, 53, 0.15);
-        background: linear-gradient(to right, rgba(255, 107, 53, 0.02), rgba(255, 184, 61, 0.02));
+        background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%);
     }
 
     .action-card.primary:hover {
@@ -818,6 +835,20 @@
         gap: 6px;
     }
 
+    .action-title-primary {
+        font-size: 20px;
+        font-weight: 700;
+        color:rgb(255, 255, 255);
+        margin: 0;
+    }
+
+    .action-description-primary {
+        font-size: 14px;
+        color:rgb(245, 245, 245);
+        line-height: 1.5;
+        margin: 0;
+    }
+
     .action-title {
         font-size: 20px;
         font-weight: 700;
@@ -849,8 +880,8 @@
     }
 
     .action-card.primary .action-btn {
-        background: linear-gradient(135deg, #FF7B54 0%, #FFCB52 100%);
-        color: white;
+        background: white;
+        color: rgb(244, 92, 67);
         box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
     }
 
@@ -1024,7 +1055,7 @@
     .hackathon-register-btn {
         width: 100%;
         padding: 14px;
-        background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%);
+        background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%);
         border: none;
         border-radius: 12px;
         color: white;

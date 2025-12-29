@@ -64,23 +64,29 @@ class AIPlagiarismDetectionService
             // Convert similarity (0.0-1.0) to percentage (0-100)
             $similarityPercent = round($similarity * 100, 2);
             
-            // Determine indicators based on similarity
+            // INVERT THE SCORE: High similarity = Low originality
+            // Originality Score = 100 - Similarity Score
+            $originalityScore = 100 - $similarityPercent;
+            
+            // Determine indicators based on originality (inverted)
             $indicators = $this->getIndicators($similarityPercent, $matchedGhost);
             
             // Determine confidence based on similarity
             $confidence = $similarityPercent >= 80 ? 'high' : ($similarityPercent >= 60 ? 'medium' : 'low');
             
             Log::info('Plagiarism detection completed (Vector Similarity Method)', [
-                'similarity' => $similarityPercent,
+                'similarity_to_ai' => $similarityPercent,
+                'originality_score' => $originalityScore,
                 'matched_ghost' => $matchedGhost,
                 'confidence' => $confidence
             ]);
             
             return [
-                'ai_probability' => (int)$similarityPercent,
-                'reason' => $similarityPercent >= 60 
-                    ? "Code shows high similarity to known AI-generated solution" 
-                    : "Code appears to have unique implementation",
+                'ai_probability' => (int)$originalityScore,  // Return originality, not similarity
+                'similarity_to_ai' => (int)$similarityPercent, // Store actual similarity for display
+                'reason' => $originalityScore >= 60 
+                    ? "Code appears original with low similarity ({$similarityPercent}%) to known AI solutions" 
+                    : "Code shows high similarity ({$similarityPercent}%) to known AI-generated solutions",
                 'indicators' => $indicators,
                 'confidence' => $confidence,
                 'matched_solution' => $matchedGhost

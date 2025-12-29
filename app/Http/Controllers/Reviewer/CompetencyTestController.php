@@ -9,16 +9,24 @@ use App\Models\Question;
 use App\Models\CompetencyTestResult;
 use App\Services\CodeExecutionService;
 use App\Services\AICodeFeedbackService;
+use App\Services\AIPlagiarismDetectionService;
+use App\Services\OutputNormalizer;
 
 class CompetencyTestController extends Controller
 {
     protected $codeExecutionService;
     protected $aiFeedbackService;
+    protected $plagiarismService;
 
-    public function __construct(CodeExecutionService $codeExecutionService, AICodeFeedbackService $aiFeedbackService)
+    public function __construct(
+        CodeExecutionService $codeExecutionService, 
+        AICodeFeedbackService $aiFeedbackService,
+        AIPlagiarismDetectionService $plagiarismService
+    )
     {
         $this->codeExecutionService = $codeExecutionService;
         $this->aiFeedbackService = $aiFeedbackService;
+        $this->plagiarismService = $plagiarismService;
     }
 
     public function chooseLanguage()
@@ -88,7 +96,7 @@ class CompetencyTestController extends Controller
                 ],
                 'JavaScript' => [
                     'icon' => '</>', 
-                    'iconBg' => '#A855F7', // Violet
+                    'iconBg' => '#F59E0B', // Violet
                     'cardBg' => '#ffffff',
                     'hoverBg' => 'rgba(169, 85, 247, 0.5)',
                     'description' => 'Assess your JavaScript skills'
@@ -353,6 +361,23 @@ class CompetencyTestController extends Controller
             return $this->submitTest();
         }
 
+        // Calculate remaining time (same logic as MCQ)
+        $testStartedAt = session('test_started_at');
+        
+        // Handle if Carbon instance is returned instead of timestamp
+        if ($testStartedAt instanceof \Carbon\Carbon) {
+            $testStartedAt = $testStartedAt->timestamp;
+        }
+        
+        $totalSeconds = 45 * 60; // 45 minutes
+        $elapsedSeconds = time() - intval($testStartedAt);
+        $remainingSeconds = max(0, $totalSeconds - $elapsedSeconds);
+
+        // If time is up, redirect to submit
+        if ($remainingSeconds <= 0) {
+            return $this->submitTest();
+        }
+
         $questionId = $codeQuestions[$currentIndex];
         $question = Question::find($questionId);
         $language = session('test_language');
@@ -362,7 +387,8 @@ class CompetencyTestController extends Controller
             'currentIndex' => $currentIndex,
             'currentQuestion' => $currentIndex + 1,
             'totalQuestions' => count($codeQuestions),
-            'language' => $language
+            'language' => $language,
+            'remainingSeconds' => $remainingSeconds
         ]);
     }
 
@@ -389,12 +415,15 @@ class CompetencyTestController extends Controller
         }
 
         // Get function name from question (stored in grading_details)
-        $gradingDetails = is_string($question->grading_details) ? json_decode($question->grading_details, true) : $question->grading_details;
+        $gradingDetails = is_string($question->grading_details) 
+            ? json_decode($question->grading_details, true) 
+            : $question->grading_details;
         $functionName = $gradingDetails['function_name'] ?? null;
 
-        // Run code against ALL test cases - JUST EXECUTE, DON'T VALIDATE
+        // Run code against ALL test cases - NOW WITH VALIDATION
         $totalTests = count($testCases);
         $testResults = [];
+        $passedTests = 0;
         $hasError = false;
         $errorMessage = '';
 
@@ -416,11 +445,19 @@ class CompetencyTestController extends Controller
                     $actualInput = $testCase;
                 }
                 
+                // Get expected output for this test case
+                $expectedOutput = isset($expectedOutputs[$index]) ? $expectedOutputs[$index] : '';
+                
+                // Extract expected output from nested structure if needed
+                if (is_array($expectedOutput) && isset($expectedOutput['output'])) {
+                    $expectedOutput = $expectedOutput['output'];
+                }
+                
                 \Log::info("Processing test case #" . ($index + 1), [
                     'index' => $index,
                     'raw_test_case' => $testCase,
                     'extracted_input' => $actualInput,
-                    'input_length' => is_string($actualInput) ? strlen($actualInput) : 'not string'
+                    'expected_output' => $expectedOutput
                 ]);
                 
                 // Execute code for this test case
@@ -433,8 +470,7 @@ class CompetencyTestController extends Controller
                 
                 \Log::info("Execution result for test case #" . ($index + 1), [
                     'success' => $result['success'],
-                    'output' => $result['output'],
-                    'output_length' => strlen($result['output'])
+                    'output' => $result['output']
                 ]);
                 
                 if (!$result['success']) {
@@ -445,6 +481,19 @@ class CompetencyTestController extends Controller
                 }
 
                 $actualOutput = trim($result['output']);
+                $expectedOutputString = is_array($expectedOutput) ? json_encode($expectedOutput) : (string)$expectedOutput;
+                
+                // Clean expected output - remove markdown backticks
+                $expectedOutputString = str_replace('`', '', $expectedOutputString);
+                $expectedOutputString = trim($expectedOutputString);
+                
+                // Use smart comparison with normalization (handles spaces, quotes, newlines)
+                $comparisonResult = OutputNormalizer::smartCompare($actualOutput, $expectedOutputString);
+                $passed = $comparisonResult['match'];
+                
+                if ($passed) {
+                    $passedTests++;
+                }
                 
                 // Format input for display (clean and readable)
                 $displayInput = $actualInput;
@@ -457,54 +506,80 @@ class CompetencyTestController extends Controller
                     $displayInput = trim($displayInput);
                 }
                 
-                // Store test results - ONLY INPUT AND OUTPUT (no validation)
+                // Store test results WITH validation
                 $testResults[] = [
                     'test_number' => $index + 1,
                     'input' => $displayInput,
-                    'output' => $actualOutput
+                    'output' => $actualOutput,
+                    'expected' => $expectedOutputString,
+                    'passed' => $passed,
+                    'is_sample' => $index === 0,  // First test case is the sample
+                    'comparison_message' => $comparisonResult['message'] ?? null
                 ];
 
                 \Log::info("Added test result #" . ($index + 1), [
                     'test_number' => $index + 1,
-                    'input_preview' => substr($displayInput, 0, 100),
-                    'output_preview' => substr($actualOutput, 0, 100)
+                    'passed' => $passed
                 ]);
 
             } catch (\Exception $e) {
                 $hasError = true;
                 $errorMessage = 'Error: ' . $e->getMessage();
                 \Log::error("Exception in test case #" . ($index + 1), [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
+                    'error' => $e->getMessage()
                 ]);
                 break;
             }
         }
 
-        \Log::info('=== FINAL TEST RESULTS ===', [
-            'total_results' => count($testResults),
-            'results' => $testResults
-        ]);
-
         // If there was an error, return it
         if ($hasError) {
+            // Clear cached results on error
+            session()->forget('last_run_result_' . $question->question_ID);
+            
             return response()->json([
                 'success' => false,
                 'output' => $errorMessage
             ], 200);
         }
 
-        // Return results - SIMPLE FORMAT (no validation, no pass/fail)
+        // Cache the run results in session for quick submit
+        session()->put('last_run_result_' . $question->question_ID, [
+            'code' => $code,
+            'passed_tests' => $passedTests,
+            'total_tests' => $totalTests,
+            'test_results' => $testResults,
+            'all_passed' => $passedTests === $totalTests,
+            'timestamp' => now()->timestamp
+        ]);
+
+        \Log::info('=== FINAL TEST RESULTS (Cached) ===', [
+            'total_results' => count($testResults),
+            'passed_tests' => $passedTests,
+            'all_passed' => $passedTests === $totalTests
+        ]);
+
+        // Return results with pass/fail status
         return response()->json([
             'success' => true,
             'totalTests' => $totalTests,
+            'passedTests' => $passedTests,
             'testResults' => $testResults,
-            'message' => "Code executed successfully on {$totalTests} test case(s)"
+            'allPassed' => $passedTests === $totalTests,
+            'message' => $passedTests === $totalTests 
+                ? "✓ All test cases passed!" 
+                : "✗ {$passedTests}/{$totalTests} test cases passed"
         ]);
     }
 
     public function submitCode(Request $request)
     {
+        \Log::info('=== SUBMIT CODE CALLED ===', [
+            'question_id' => $request->question_id,
+            'has_solution' => !empty($request->solution),
+            'solution_length' => $request->solution ? strlen($request->solution) : 0
+        ]);
+
         $request->validate([
             'solution' => 'required',
             'question_id' => 'required|exists:questions,question_ID'
@@ -514,118 +589,97 @@ class CompetencyTestController extends Controller
         $language = session('test_language');
         $question = Question::find($request->question_id);
 
-        // Get ALL test cases from the database (sample + hidden test cases)
-        $testCases = is_string($question->input) ? json_decode($question->input, true) : $question->input;
-        $expectedOutputs = is_string($question->expected_output) ? json_decode($question->expected_output, true) : $question->expected_output;
+        \Log::info('Question and language loaded', [
+            'language' => $language,
+            'question_title' => $question->title ?? 'N/A'
+        ]);
 
-        if (!$testCases || !is_array($testCases) || empty($testCases)) {
-            return redirect()->back()->with('error', 'No test cases available for this question.');
+        // Check if user has run the code first
+        $cachedResult = session('last_run_result_' . $question->question_ID);
+        
+        // Normalize both codes for comparison (remove all whitespace differences)
+        $submittedCodeNormalized = preg_replace('/\s+/', '', trim($code));
+        $cachedCodeNormalized = $cachedResult ? preg_replace('/\s+/', '', trim($cachedResult['code'])) : '';
+        
+        \Log::info('Checking cached run result', [
+            'has_cached_result' => !empty($cachedResult),
+            'codes_match' => $submittedCodeNormalized === $cachedCodeNormalized,
+            'submitted_length' => strlen($code),
+            'cached_length' => $cachedResult ? strlen($cachedResult['code']) : 0,
+            'normalized_submitted_length' => strlen($submittedCodeNormalized),
+            'normalized_cached_length' => strlen($cachedCodeNormalized)
+        ]);
+        
+        if (!$cachedResult) {
+            \Log::warning('No cached result found - redirecting back');
+            return redirect()->back()->with('error', 'Please run your code first before submitting. This ensures your code works correctly.');
+        }
+        
+        if ($submittedCodeNormalized !== $cachedCodeNormalized) {
+            \Log::warning('Code mismatch after running - redirecting back', [
+                'first_50_chars_submitted' => substr($submittedCodeNormalized, 0, 50),
+                'first_50_chars_cached' => substr($cachedCodeNormalized, 0, 50)
+            ]);
+            return redirect()->back()->with('error', 'The code has been modified after running. Please run your code again before submitting.');
         }
 
-        // Get function name from question (stored in grading_details)
-        $gradingDetails = is_string($question->grading_details) ? json_decode($question->grading_details, true) : $question->grading_details;
-        $functionName = $gradingDetails['function_name'] ?? null;
+        // Use cached test results from "Run Code"
+        $passedTests = $cachedResult['passed_tests'];
+        $totalTests = $cachedResult['total_tests'];
+        $testResults = $cachedResult['test_results'];
 
-        // Run code against ALL test cases
-        $totalTests = count($testCases);
-        $passedTests = 0;
-        $testResults = [];
-
-        foreach ($testCases as $index => $testCase) {
-            // EXTRACT THE ACTUAL INPUT from nested structure (same as runCode)
-            $actualInput = null;
-            if (is_array($testCase)) {
-                // Nested structure - extract the 'input' field
-                $actualInput = $testCase['input'] ?? $testCase;
-            } else {
-                // Direct input
-                $actualInput = $testCase;
-            }
-            
-            // Get expected output for this test case
-            $expectedOutput = isset($expectedOutputs[$index]) ? $expectedOutputs[$index] : '';
-            
-            // Extract expected output from nested structure if needed
-            if (is_array($expectedOutput) && isset($expectedOutput['output'])) {
-                $expectedOutput = $expectedOutput['output'];
-            }
-            
-            // Use the new CodeExecutionService with driver script logic
-            $result = $this->codeExecutionService->executeCode(
-                $code,
-                $language,
-                $actualInput,
-                $functionName
-            );
-            
-            if ($result['success']) {
-                $actualOutput = trim($result['output']);
-                $expectedOutputString = is_array($expectedOutput) ? json_encode($expectedOutput) : (string)$expectedOutput;
-                
-                // Clean expected output - remove markdown backticks
-                $expectedOutputString = str_replace('`', '', $expectedOutputString);
-                $expectedOutputString = trim($expectedOutputString);
-                
-                $passed = $actualOutput === $expectedOutputString;
-                
-                if ($passed) {
-                    $passedTests++;
-                }
-
-                // Format input for display (clean and readable)
-                $displayInput = $actualInput;
-                if (is_array($displayInput)) {
-                    $displayInput = json_encode($displayInput, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                } else {
-                    // Remove markdown code blocks
-                    $displayInput = preg_replace('/```[\w]*\n?/', '', $displayInput);
-                    $displayInput = preg_replace('/```/', '', $displayInput);
-                    $displayInput = trim($displayInput);
-                }
-
-                // SHOW ALL TEST CASES (not hidden)
-                $testResults[] = [
-                    'test_number' => $index + 1,
-                    'is_sample' => $index === 0, // First test case is marked as sample
-                    'input' => $displayInput, // Show input for ALL test cases
-                    'expected' => $expectedOutputString, // Show expected for ALL test cases (cleaned)
-                    'actual' => $actualOutput, // Show actual output for ALL test cases
-                    'passed' => $passed
-                ];
-            } else {
-                // If execution failed, mark as failed
-                $displayInput = is_array($actualInput) ? json_encode($actualInput, JSON_PRETTY_PRINT) : $actualInput;
-                // Remove markdown code blocks
-                if (is_string($displayInput)) {
-                    $displayInput = preg_replace('/```[\w]*\n?/', '', $displayInput);
-                    $displayInput = preg_replace('/```/', '', $displayInput);
-                    $displayInput = trim($displayInput);
-                }
-                
-                $testResults[] = [
-                    'test_number' => $index + 1,
-                    'is_sample' => $index === 0,
-                    'input' => $displayInput, // Show input even on failure
-                    'expected' => is_array($expectedOutput) ? json_encode($expectedOutput) : $expectedOutput,
-                    'actual' => $result['output'], // Show error message
-                    'passed' => false
-                ];
-            }
-        }
+        \Log::info('Using cached test results', [
+            'passed_tests' => $passedTests,
+            'total_tests' => $totalTests
+        ]);
 
         // Calculate score for this question (10 points max per question)
         $scorePercentage = ($passedTests / $totalTests) * 100;
         $questionScore = ($scorePercentage / 100) * 10; // Scale to 10 points
 
-        // Generate AI feedback for the code submission
-        $aiFeedback = $this->aiFeedbackService->generateFeedback(
-            $code,
-            $language,
-            $question->title ?? 'Coding Challenge',
-            $testResults
-        );
+        \Log::info('Running plagiarism detection...');
 
-        // Store the solution and test results
+        // ============================================================
+        // AI PLAGIARISM DETECTION (Vector Similarity Method)
+        // ============================================================
+        try {
+            // Analyze code for AI authorship using TF-IDF Vector Similarity
+            $plagiarismAnalysis = $this->plagiarismService->analyzeCode($code, $language, $question->question_ID);
+            $plagiarismScore = $plagiarismAnalysis['ai_probability'];
+            $riskLevel = $this->plagiarismService->getRiskLevel($plagiarismScore);
+            
+            \Log::info('Plagiarism analysis completed (Competency Test)', [
+                'reviewer_id' => Auth::guard('reviewer')->user()->reviewer_ID,
+                'question_id' => $question->question_ID,
+                'similarity_score' => $plagiarismScore,
+                'risk_level' => $riskLevel,
+                'confidence' => $plagiarismAnalysis['confidence'],
+                'matched_solution' => $plagiarismAnalysis['matched_solution'] ?? null,
+                'method' => 'TF-IDF Vector Similarity'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Plagiarism detection failed, using fallback', [
+                'error' => $e->getMessage()
+            ]);
+            // Fallback values if plagiarism detection fails
+            $plagiarismAnalysis = [
+                'ai_probability' => 0,
+                'reason' => 'Plagiarism detection unavailable',
+                'indicators' => ['Detection service error'],
+                'confidence' => 'low',
+                'matched_solution' => null
+            ];
+            $plagiarismScore = 0;
+            $riskLevel = 'minimal';
+        }
+
+        // Skip AI feedback for now (too slow for instant submission)
+        $aiFeedback = null;
+
+        // Clear the cached run result
+        session()->forget('last_run_result_' . $question->question_ID);
+
+        // Store the solution and test results WITH plagiarism data
         $codeSolutions = session('code_solutions', []);
         $codeSolutions[$request->question_id] = [
             'solution' => $code,
@@ -633,9 +687,16 @@ class CompetencyTestController extends Controller
             'passed_tests' => $passedTests,
             'total_tests' => $totalTests,
             'test_results' => $testResults,
-            'ai_feedback' => $aiFeedback
+            'ai_feedback' => $aiFeedback,
+            'plagiarism_score' => $plagiarismScore,
+            'plagiarism_analysis' => $plagiarismAnalysis
         ];
         session()->put('code_solutions', $codeSolutions);
+
+        \Log::info('Stored code solution in session', [
+            'question_id' => $request->question_id,
+            'total_solutions_stored' => count($codeSolutions)
+        ]);
 
         // Store current submission feedback in session
         session()->put('submission_feedback', [
@@ -645,16 +706,20 @@ class CompetencyTestController extends Controller
             'total_tests' => $totalTests,
             'test_results' => $testResults,
             'score' => $questionScore,
-            'ai_feedback' => $aiFeedback
+            'ai_feedback' => $aiFeedback,
+            'plagiarism_score' => $plagiarismScore,
+            'plagiarism_analysis' => $plagiarismAnalysis
         ]);
 
-        // Increment the index
-        $currentIndex = session('current_code_index', 0);
-        $newIndex = $currentIndex + 1;
-        session()->put('current_code_index', $newIndex);
+        \Log::info('Stored submission feedback in session');
+
+        // DON'T increment index yet - do it after user sees feedback
+        // This ensures feedback shows for current question, not next one
         
         // Save session to ensure it persists
         session()->save();
+
+        \Log::info('Session saved, redirecting to feedback page');
 
         // Redirect to feedback page to show test results
         return redirect()->route('reviewer.competency.code.feedback');
@@ -670,12 +735,14 @@ class CompetencyTestController extends Controller
 
         $codeQuestions = session('code_questions');
         $currentIndex = session('current_code_index', 0);
-        $isLastQuestion = $currentIndex >= count($codeQuestions);
+        
+        // Check if this is the last question (compare current + 1 with total)
+        $isLastQuestion = ($currentIndex + 1) >= count($codeQuestions);
 
         return view('reviewer.competency.code-feedback', [
             'feedback' => $feedback,
             'isLastQuestion' => $isLastQuestion,
-            'currentQuestion' => $currentIndex,
+            'currentQuestion' => $currentIndex + 1,
             'totalQuestions' => count($codeQuestions)
         ]);
     }
@@ -685,11 +752,16 @@ class CompetencyTestController extends Controller
         // Clear the feedback from session
         session()->forget('submission_feedback');
 
-        $codeQuestions = session('code_questions');
+        // NOW increment the index after user has seen feedback
         $currentIndex = session('current_code_index', 0);
+        $newIndex = $currentIndex + 1;
+        session()->put('current_code_index', $newIndex);
+        session()->save();
+        
+        $codeQuestions = session('code_questions');
         
         // Check if we've completed all code questions
-        if ($currentIndex >= count($codeQuestions)) {
+        if ($newIndex >= count($codeQuestions)) {
             return $this->submitTest();
         }
 
@@ -714,29 +786,54 @@ class CompetencyTestController extends Controller
 
         // Calculate code solution score from actual test results
         $codeScore = 0;
+        $totalPlagiarismScore = 0;
+        $plagiarismCount = 0;
+        
         foreach ($codeSolutions as $questionId => $solutionData) {
             if (is_array($solutionData) && isset($solutionData['score'])) {
                 $codeScore += $solutionData['score'];
             }
+            
+            // Accumulate plagiarism scores
+            if (is_array($solutionData) && isset($solutionData['plagiarism_score'])) {
+                $totalPlagiarismScore += $solutionData['plagiarism_score'];
+                $plagiarismCount++;
+            }
         }
+
+        // Calculate average plagiarism score (100 = no plagiarism, 0 = high plagiarism)
+        $avgPlagiarismScore = $plagiarismCount > 0 ? round($totalPlagiarismScore / $plagiarismCount, 2) : 100;
 
         // Total: 60 + 20 = 80 points max, scale to 100
         $totalScore = (($mcqScore + $codeScore) / 80) * 100;
-        $plagiarismScore = 100; // Placeholder for plagiarism detection
 
+        // Determine pass/fail status
+        // Must pass BOTH correctness (50%+) AND plagiarism (60%+) checks
         $levelAchieved = null;
         $passed = false;
+        $plagiarismPassed = $avgPlagiarismScore >= 60; // 60% threshold means low AI probability
 
-        if ($totalScore >= 90) {
+        if ($totalScore >= 90 && $plagiarismPassed) {
             $levelAchieved = 'all';
             $passed = true;
-        } elseif ($totalScore >= 75) {
+        } elseif ($totalScore >= 75 && $plagiarismPassed) {
             $levelAchieved = 'intermediate';
             $passed = true;
-        } elseif ($totalScore >= 50) {
+        } elseif ($totalScore >= 50 && $plagiarismPassed) {
             $levelAchieved = 'beginner';
             $passed = true;
         }
+
+        // Log the final results
+        \Log::info('Competency Test Completed', [
+            'reviewer_id' => $reviewer->reviewer_ID,
+            'language' => $language,
+            'total_score' => round($totalScore),
+            'plagiarism_score' => $avgPlagiarismScore,
+            'plagiarism_passed' => $plagiarismPassed,
+            'passed' => $passed,
+            'level_achieved' => $levelAchieved
+        ]);
 
         // Save test result
         $result = CompetencyTestResult::create([
@@ -745,7 +842,7 @@ class CompetencyTestController extends Controller
             'mcq_score' => $mcqScore,
             'code_score' => $codeScore,
             'total_score' => round($totalScore),
-            'plagiarism_score' => $plagiarismScore,
+            'plagiarism_score' => $avgPlagiarismScore,
             'level_achieved' => $levelAchieved,
             'passed' => $passed,
             'mcq_answers' => $mcqAnswers,
@@ -753,14 +850,14 @@ class CompetencyTestController extends Controller
             'completed_at' => now()
         ]);
 
-        // Update reviewer qualification status
+        // Update reviewer qualification status ONLY if passed
         if ($passed) {
             $reviewer->update(['isQualified' => true]);
         }
 
         // Clear session
         session()->forget(['test_language', 'test_started_at', 'mcq_questions', 'current_mcq_index', 
-                          'mcq_answers', 'code_questions', 'current_code_index', 'code_solutions']);
+                          'mcq_answers', 'code_questions', 'current_code_index', 'code_solutions', 'submission_feedback']);
 
         return redirect()->route('reviewer.competency.result', $result->id);
     }

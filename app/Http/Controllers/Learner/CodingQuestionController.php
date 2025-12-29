@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Question;
 use App\Models\Learner;
 use Illuminate\Http\Request;
+use App\Services\CodeExecutionService;
 
 class CodingQuestionController extends Controller
 {
@@ -43,6 +44,7 @@ class CodingQuestionController extends Controller
         $language = $request->query('language');
         $level = $request->query('level');
         $topic = $request->query('topic');
+        $excludeId = $request->query('exclude');
         
         $query = Question::where('questionType', 'Code_Solution')
             ->where('status', 'Approved')
@@ -60,6 +62,11 @@ class CodingQuestionController extends Controller
             $query->where('chapter', $topic);
         }
         
+        // Exclude current question if provided
+        if ($excludeId) {
+            $query->where('question_ID', '!=', $excludeId);
+        }
+        
         // Get a random question
         $question = $query->inRandomOrder()->first();
         
@@ -69,6 +76,7 @@ class CodingQuestionController extends Controller
                 'language' => $language,
                 'level' => $level,
                 'topic' => $topic,
+                'exclude' => $excludeId,
                 'query_count' => Question::where('questionType', 'Code_Solution')
                     ->where('status', 'Approved')
                     ->where('questionCategory', 'learnerPractice')
@@ -118,5 +126,44 @@ class CodingQuestionController extends Controller
         }
         
         return redirect()->route('learner.coding.show', ['questionId' => $question->question_ID]);
+    }
+
+    /**
+     * Generate starter code for a question (LeetCode-style)
+     * API Endpoint: GET /api/coding-questions/{questionId}/starter-code?language=java
+     */
+    public function getStarterCode(Request $request, $questionId)
+    {
+        $question = Question::findOrFail($questionId);
+        $language = $request->query('language', $question->language);
+        
+        // If question has function signature details, generate starter code
+        if ($question->function_name && $question->return_type && $question->function_parameters) {
+            $codeExecutionService = app(CodeExecutionService::class);
+            
+            $starterCode = $codeExecutionService->generateStarterCode(
+                $language,
+                $question->function_name,
+                $question->return_type,
+                $question->function_parameters ?? []
+            );
+            
+            return response()->json([
+                'success' => true,
+                'starterCode' => $starterCode,
+                'functionName' => $question->function_name,
+                'returnType' => $question->return_type,
+                'parameters' => $question->function_parameters
+            ]);
+        }
+        
+        // Fallback to generic placeholder if no function signature is defined
+        return response()->json([
+            'success' => true,
+            'starterCode' => "// Write your solution here...\n\n",
+            'functionName' => null,
+            'returnType' => null,
+            'parameters' => []
+        ]);
     }
 }

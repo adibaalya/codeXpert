@@ -9,22 +9,27 @@ use App\Models\Learner;
 use App\Services\CodeExecutionService;
 use App\Services\AICodeFeedbackService;
 use App\Services\AIPlagiarismDetectionService;
+use App\Services\OutputNormalizer;
+use App\Services\CodeTemplateService;
 
 class CodeExecutionController extends Controller
 {
     protected $codeExecutionService;
     protected $aiFeedbackService;
     protected $plagiarismService;
+    protected $templateService;
     
     public function __construct(
         CodeExecutionService $codeExecutionService, 
         AICodeFeedbackService $aiFeedbackService,
-        AIPlagiarismDetectionService $plagiarismService
+        AIPlagiarismDetectionService $plagiarismService,
+        CodeTemplateService $templateService
     )
     {
         $this->codeExecutionService = $codeExecutionService;
         $this->aiFeedbackService = $aiFeedbackService;
         $this->plagiarismService = $plagiarismService;
+        $this->templateService = $templateService;
     }
     
     /**
@@ -57,36 +62,30 @@ class CodeExecutionController extends Controller
         $gradingDetails = is_string($question->grading_details) ? json_decode($question->grading_details, true) : $question->grading_details;
         $functionName = $gradingDetails['function_name'] ?? null;
 
-        // Run code against ALL test cases - JUST EXECUTE, DON'T VALIDATE
+        // Run code against ALL test cases and VALIDATE results
         $totalTests = count($testCases);
+        $passedTests = 0;
         $testResults = [];
         $hasError = false;
         $errorMessage = '';
-
-        \Log::info('=== RUN CODE DEBUG (Learner) ===', [
-            'total_test_cases' => $totalTests,
-            'test_cases_raw' => $testCases
-        ]);
 
         foreach ($testCases as $index => $testCase) {
             try {
                 // EXTRACT THE ACTUAL INPUT from nested structure
                 $actualInput = null;
-                
                 if (is_array($testCase)) {
-                    // Nested structure - extract the 'input' field
                     $actualInput = $testCase['input'] ?? $testCase;
                 } else {
-                    // Direct input
                     $actualInput = $testCase;
                 }
                 
-                \Log::info("Processing test case #" . ($index + 1), [
-                    'index' => $index,
-                    'raw_test_case' => $testCase,
-                    'extracted_input' => $actualInput,
-                    'input_length' => is_string($actualInput) ? strlen($actualInput) : 'not string'
-                ]);
+                // Get expected output for this test case
+                $expectedOutput = isset($expectedOutputs[$index]) ? $expectedOutputs[$index] : null;
+                
+                // Extract expected output from nested structure if needed
+                if (is_array($expectedOutput) && isset($expectedOutput['output'])) {
+                    $expectedOutput = $expectedOutput['output'];
+                }
                 
                 // Execute code for this test case using Docker
                 $result = $this->codeExecutionService->executeCode(
@@ -95,12 +94,6 @@ class CodeExecutionController extends Controller
                     $actualInput,
                     $functionName
                 );
-                
-                \Log::info("Execution result for test case #" . ($index + 1), [
-                    'success' => $result['success'],
-                    'output' => $result['output'],
-                    'output_length' => strlen($result['output'])
-                ]);
                 
                 if (!$result['success']) {
                     // Execution error - stop testing and show error
@@ -116,40 +109,54 @@ class CodeExecutionController extends Controller
                 if (is_array($displayInput)) {
                     $displayInput = json_encode($displayInput, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
                 } else {
-                    // Remove markdown code blocks
                     $displayInput = preg_replace('/```[\w]*\n?/', '', $displayInput);
                     $displayInput = preg_replace('/```/', '', $displayInput);
                     $displayInput = trim($displayInput);
                 }
                 
-                // Store test results - ONLY INPUT AND OUTPUT (no validation)
+                // Format expected output for display - ALWAYS include it
+                $displayExpected = '';
+                $passed = false;
+                $comparisonDetails = null;
+                
+                if ($expectedOutput !== null) {
+                    if (is_array($expectedOutput)) {
+                        $displayExpected = json_encode($expectedOutput, JSON_UNESCAPED_SLASHES);
+                    } else {
+                        // Remove markdown code blocks and backticks
+                        $displayExpected = str_replace('`', '', (string)$expectedOutput);
+                        $displayExpected = preg_replace('/```[\w]*\n?/', '', $displayExpected);
+                        $displayExpected = preg_replace('/```/', '', $displayExpected);
+                        $displayExpected = trim($displayExpected);
+                    }
+                    
+                    // Use smart comparison with normalization (handles spaces, quotes, newlines)
+                    $comparisonResult = OutputNormalizer::smartCompare($actualOutput, $displayExpected);
+                    $passed = $comparisonResult['match'];
+                    $comparisonDetails = $comparisonResult;
+                    
+                    if ($passed) {
+                        $passedTests++;
+                    }
+                }
+                
+                // Store test results - INPUT, OUTPUT, EXPECTED, and PASSED status
                 $testResults[] = [
                     'test_number' => $index + 1,
                     'input' => $displayInput,
-                    'output' => $actualOutput
+                    'output' => $actualOutput,
+                    'expected' => $displayExpected,
+                    'passed' => $passed,
+                    'comparison_message' => $comparisonDetails['message'] ?? null,
+                    'diff' => !$passed && isset($comparisonDetails['diff']) ? $comparisonDetails['diff'] : null
                 ];
-
-                \Log::info("Added test result #" . ($index + 1), [
-                    'test_number' => $index + 1,
-                    'input_preview' => substr($displayInput, 0, 100),
-                    'output_preview' => substr($actualOutput, 0, 100)
-                ]);
 
             } catch (\Exception $e) {
                 $hasError = true;
                 $errorMessage = 'Error: ' . $e->getMessage();
-                \Log::error("Exception in test case #" . ($index + 1), [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
                 break;
             }
         }
-
-        \Log::info('=== FINAL TEST RESULTS (Learner) ===', [
-            'total_results' => count($testResults),
-            'results' => $testResults
-        ]);
 
         // If there was an error, return it
         if ($hasError) {
@@ -159,12 +166,19 @@ class CodeExecutionController extends Controller
             ], 200);
         }
 
-        // Return results - SIMPLE FORMAT (no validation, no pass/fail)
+        // Calculate overall status
+        $overallStatus = ($passedTests === $totalTests) ? 'Accepted' : 'Failed';
+
+        // Return results with validation
         return response()->json([
             'success' => true,
+            'overallStatus' => $overallStatus,
+            'passedTests' => $passedTests,
             'totalTests' => $totalTests,
             'testResults' => $testResults,
-            'message' => "Code executed successfully on {$totalTests} test case(s)"
+            'message' => $overallStatus === 'Accepted' 
+                ? "✓ All test cases passed!" 
+                : "✗ {$passedTests}/{$totalTests} test cases passed"
         ]);
     }
     
@@ -200,6 +214,8 @@ class CodeExecutionController extends Controller
         $totalTests = count($testCases);
         $passedTests = 0;
         $testResults = [];
+        $hasCompilationError = false;
+        $compilationError = '';
 
         foreach ($testCases as $index => $testCase) {
             // EXTRACT THE ACTUAL INPUT from nested structure (same as runCode)
@@ -236,7 +252,9 @@ class CodeExecutionController extends Controller
                 $expectedOutputString = str_replace('`', '', $expectedOutputString);
                 $expectedOutputString = trim($expectedOutputString);
                 
-                $passed = $actualOutput === $expectedOutputString;
+                // Use smart comparison with normalization (handles spaces, quotes, newlines)
+                $comparisonResult = OutputNormalizer::smartCompare($actualOutput, $expectedOutputString);
+                $passed = $comparisonResult['match'];
                 
                 if ($passed) {
                     $passedTests++;
@@ -253,39 +271,38 @@ class CodeExecutionController extends Controller
                     $displayInput = trim($displayInput);
                 }
 
-                // SHOW ALL TEST CASES
+                // SHOW ALL TEST CASES with case number
                 $testResults[] = [
                     'test_number' => $index + 1,
+                    'case_label' => "Case " . ($index + 1),
                     'is_sample' => $index === 0, // First test case is marked as sample
                     'input' => $displayInput,
                     'expected' => $expectedOutputString,
                     'actual' => $actualOutput,
-                    'passed' => $passed
+                    'passed' => $passed,
+                    'comparison_message' => $comparisonResult['message'] ?? null
                 ];
             } else {
-                // If execution failed, mark as failed
-                $displayInput = is_array($actualInput) ? json_encode($actualInput, JSON_PRETTY_PRINT) : $actualInput;
-                // Remove markdown code blocks
-                if (is_string($displayInput)) {
-                    $displayInput = preg_replace('/```[\w]*\n?/', '', $displayInput);
-                    $displayInput = preg_replace('/```/', '', $displayInput);
-                    $displayInput = trim($displayInput);
-                }
+                // If execution failed (compilation error or runtime error)
+                $hasCompilationError = true;
+                $compilationError = $result['output'];
                 
-                $testResults[] = [
-                    'test_number' => $index + 1,
-                    'is_sample' => $index === 0,
-                    'input' => $displayInput,
-                    'expected' => is_array($expectedOutput) ? json_encode($expectedOutput) : $expectedOutput,
-                    'actual' => $result['output'], // Show error message
-                    'passed' => false
-                ];
+                // Don't continue testing if there's a compilation error
+                break;
             }
+        }
+
+        // If there was a compilation/runtime error, show it immediately
+        if ($hasCompilationError) {
+            return redirect()->back()->with('error', $compilationError);
         }
 
         // Calculate score for this question
         $scorePercentage = ($passedTests / $totalTests) * 100;
         $questionScore = round($scorePercentage, 2);
+
+        // Determine overall status
+        $overallStatus = ($passedTests === $totalTests) ? 'Accepted' : 'Failed';
 
         // Generate AI feedback for the submission
         $aiFeedback = $this->aiFeedbackService->generateFeedback(
@@ -298,7 +315,6 @@ class CodeExecutionController extends Controller
         // ============================================================
         // AI PLAGIARISM DETECTION (Ghost File Trap Method)
         // ============================================================
-        // Analyze code for AI authorship patterns by comparing against known AI solutions
         $plagiarismAnalysis = $this->plagiarismService->analyzeCode($code, $language, $question->question_ID);
         $plagiarismScore = $plagiarismAnalysis['ai_probability'];
         $riskLevel = $this->plagiarismService->getRiskLevel($plagiarismScore);
@@ -316,8 +332,6 @@ class CodeExecutionController extends Controller
         // ============================================================
         // CALCULATE XP USING LINEAR MULTIPLIER MODEL
         // ============================================================
-        // Formula: XP = BaseXP × DifficultyMultiplier × (Score/MaxScore)
-        
         $baseXP = 10; // Base XP for any question
         
         // Difficulty Multiplier based on question level
@@ -347,11 +361,11 @@ class CodeExecutionController extends Controller
             \DB::table('attempts')->insert([
                 'question_ID' => $question->question_ID,
                 'learner_ID' => $learner->learner_ID,
-                'testResult_ID' => null, // This is for practice, not competency test
+                'testResult_ID' => null,
                 'submittedCode' => $code,
-                'plagiarismScore' => $plagiarismScore, // Store AI plagiarism detection score
-                'accuracyScore' => $earnedXP, // Store earned XP as accuracy score
-                'aiFeedback' => $aiFeedbackString, // Store as JSON string
+                'plagiarismScore' => $plagiarismScore,
+                'accuracyScore' => $earnedXP,
+                'aiFeedback' => $aiFeedbackString,
                 'dateAttempted' => now(),
                 'created_at' => now(),
                 'updated_at' => now()
@@ -363,7 +377,6 @@ class CodeExecutionController extends Controller
             // ============================================================
             // UPDATE STREAK
             // ============================================================
-            // Check if learner has attempted today
             $lastAttempt = \DB::table('attempts')
                 ->where('learner_ID', $learner->learner_ID)
                 ->where('dateAttempted', '<', now()->startOfDay())
@@ -375,17 +388,12 @@ class CodeExecutionController extends Controller
                 $today = \Carbon\Carbon::now()->startOfDay();
                 $yesterday = \Carbon\Carbon::now()->subDay()->startOfDay();
                 
-                // If last attempt was yesterday, increment streak
                 if ($lastAttemptDate->isSameDay($yesterday)) {
                     $learner->streak += 1;
-                }
-                // If last attempt was more than 1 day ago, reset streak to 1
-                elseif ($lastAttemptDate->isBefore($yesterday)) {
+                } elseif ($lastAttemptDate->isBefore($yesterday)) {
                     $learner->streak = 1;
                 }
-                // If last attempt was today, keep streak unchanged
             } else {
-                // First attempt ever, set streak to 1
                 $learner->streak = 1;
             }
             
@@ -394,7 +402,6 @@ class CodeExecutionController extends Controller
             // ============================================================
             // UPDATE USER PROFICIENCY
             // ============================================================
-            // Use updateOrCreate which handles composite keys better
             $proficiency = \App\Models\UserProficiency::updateOrCreate(
                 [
                     'learner_ID' => $learner->learner_ID,
@@ -402,7 +409,7 @@ class CodeExecutionController extends Controller
                 ],
                 [
                     'XP' => \DB::raw("XP + $earnedXP"),
-                    'level' => 'Beginner' // Will be updated below
+                    'level' => 'Beginner'
                 ]
             );
             
@@ -419,7 +426,6 @@ class CodeExecutionController extends Controller
                 $newLevel = 'Intermediate';
             }
             
-            // Only update level if it changed
             if ($proficiency->level !== $newLevel) {
                 \DB::table('user_proficiencies')
                     ->where('learner_ID', $learner->learner_ID)
@@ -445,19 +451,20 @@ class CodeExecutionController extends Controller
             'score' => $questionScore,
             'passed_tests' => $passedTests,
             'total_tests' => $totalTests,
+            'overall_status' => $overallStatus, // Add overall status
             'test_results' => $testResults,
-            'ai_feedback' => is_string($aiFeedback) ? json_decode($aiFeedback, true) : $aiFeedback, // Handle as array
-            'earned_xp' => $earnedXP, // Add earned XP to session data
-            'new_total_xp' => $learner->totalPoint, // Add new total XP
-            'current_streak' => $learner->streak, // Add current streak
-            'plagiarism_analysis' => $plagiarismAnalysis, // Add plagiarism analysis
+            'ai_feedback' => is_string($aiFeedback) ? json_decode($aiFeedback, true) : $aiFeedback,
+            'earned_xp' => $earnedXP,
+            'new_total_xp' => $learner->totalPoint,
+            'current_streak' => $learner->streak,
+            'plagiarism_analysis' => $plagiarismAnalysis,
             'submitted_at' => now()
         ];
 
         // Store in session for result page
         session()->put('coding_submission', $submissionData);
 
-        // Redirect to result page (using same view as competency test)
+        // Redirect to result page
         return redirect()->route('learner.coding.result');
     }
 

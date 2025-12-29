@@ -6,13 +6,14 @@
     <title>{{ $reviewer->username ?? 'Reviewer' }} - Profile | CodeXpert</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     @include('layouts.profileCSS')
+    @include('layouts.dashboardCSS')
     @include('layouts.navCSS')
 </head>
-<body>
+<body class="reviewer-body">
     <!-- Header -->
     <div class="header">
         <div class="logo-container">
-            <img class="logo" src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+            <img class="logo" src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
             <span class="logo-text">CodeXpert</span>
         </div>
         
@@ -22,7 +23,7 @@
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.review') }}'">Review</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.generate') }}'">Generate</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.history') }}'">History</button>
-                <button class="nav-item active" onclick="window.location.href='{{ route('reviewer.profile') }}'">Profile</button>
+                <button class="nav-item active-reviewer" onclick="window.location.href='{{ route('reviewer.profile') }}'">Profile</button>
             </nav>
 
             <div class="user-section">
@@ -30,13 +31,13 @@
                     <div class="user-name">{{ $reviewer->username }}</div>
                     <div class="user-role">Reviewer</div>
                 </div>
-                <div class="user-avatar" onclick="toggleUserMenu(event)">
+                <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
                     {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
                 </div>
                 
                 <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
-                    <div class="user-dropdown-header">
+                    <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
                             {{ strtoupper(substr($reviewer->username, 0, 2)) }}
                         </div>
@@ -88,17 +89,21 @@
     <div class="profile-container">
         <!-- Left Sidebar -->
         <aside class="profile-sidebar">
-            <div class="profile-avatar">
-                <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
-                </svg>
+            <div class="profile-avatar-reviewer">
+                @if($reviewer->profile_photo)
+                    <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="Profile Photo" style="width: 100%; height: 100%; object-fit: cover;">
+                @else
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+                    </svg>
+                @endif
             </div>
 
-            <h1 class="profile-name">{{ $reviewer->username ?? 'Dibooo' }}</h1>
+            <h1 class="profile-name">{{ $reviewer->username }}</h1>
             <p class="profile-email">{{ $reviewer->email }}</p>
 
-            @if($competencyResult)
-            <div class="verified-badge">
+            @if($competencyResults->isNotEmpty())
+            <div class="verified-badge-reviewer">
                 <svg fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
@@ -106,17 +111,21 @@
             </div>
 
             <div class="profile-info-section">
-                <div class="profile-info-item">
+                <div class="profile-info-item-reviewer">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
                     </svg>
                     <div class="info-content">
                         <div class="info-label">Expertise</div>
-                        <div class="info-value">{{ $competencyResult->language }}</div>
+                        <div class="info-value">
+                            @foreach($competencyResults as $index => $result)
+                                {{ $result->language }}@if($index < $competencyResults->count() - 1), @endif
+                            @endforeach
+                        </div>
                     </div>
                 </div>
 
-                <div class="profile-info-item">
+                <div class="profile-info-item-reviewer">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                     </svg>
@@ -128,7 +137,7 @@
             </div>
             @else
             <div class="profile-info-section">
-                <div class="profile-info-item">
+                <div class="profile-info-item-reviewer">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                     </svg>
@@ -139,6 +148,13 @@
                 </div>
             </div>
             @endif
+            
+            <button class="challenge-start-btn-reviewer" onclick="window.location.href='{{ route('reviewer.profile.edit') }}'" style="width: 100%; margin-top: 20px;">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; margin-right: 8px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                Edit Profile
+            </button>
         </aside>
 
         <!-- Main Content -->
@@ -194,8 +210,9 @@
             <section class="competency-section">
                 <h2 class="section-title">Competency Test Results</h2>
 
-                @if($competencyResult)
-                <div class="certification-header" style="cursor: pointer;" onclick="window.location.href='{{ route('reviewer.certificate.download') }}'">
+                @if($competencyResults->isNotEmpty())
+                @foreach($competencyResults as $competencyResult)
+                <div class="certification-header" style="cursor: pointer;" onclick="window.location.href='{{ route('reviewer.certificate.download', ['id' => $competencyResult->id]) }}'">
                     <div class="certification-info">
                         <h4>{{ $competencyResult->language }} Certification</h4>
                         <p>Successfully passed on {{ $competencyResult->completed_at->format('F Y') }}</p>
@@ -244,6 +261,7 @@
                         </div>
                     </div>
                 </div>
+                @endforeach
                 @else
                 <div style="text-align: center; padding: 40px; color: #8e8e93;">
                     <p>No competency test results available</p>

@@ -32,18 +32,20 @@
         .title-text {
             font-size: 42px;
             font-weight: 800;
+            background-image: linear-gradient(to right,rgb(250, 90, 75) 10%,rgb(250, 90, 75));
+            -webkit-background-clip: text; 
+            background-clip: text; 
+            -webkit-text-fill-color: transparent; 
+            color: transparent; 
+            margin-bottom: 8px;
             text-align: center;
-            color: #1a202c;
-            margin-bottom: 12px;
-            letter-spacing: -0.5px;
         }
 
         .subtitle {
-            color: #718096;
-            font-size: 18px;
-            margin-bottom: 60px;
+            font-size: 16px;
+            color: #6B7280;
+            margin-bottom: 30px;
             text-align: center;
-            font-weight: 400;
         }
 
         .section-title {
@@ -120,7 +122,7 @@
         }
 
         .language-level {
-            background: #3b82f6;
+            background:#FF6B35;
             color: white;
             padding: 6px 14px;
             border-radius: 20px;
@@ -130,11 +132,6 @@
             align-items: center;
             gap: 6px;
             width: fit-content;
-        }
-
-        .language-level::before {
-            content: "⚡";
-            font-size: 12px;
         }
 
         .remove-btn {
@@ -196,7 +193,7 @@
             width: 56px;
             height: 56px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #ff6b6b 0%, #ffa07a 100%);
+            background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -230,6 +227,7 @@
             background: white;
             border-radius: 16px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 40px;
         }
 
         .empty-icon {
@@ -250,7 +248,7 @@
         }
 
         .start-btn {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ffa07a 100%);
+            background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%);
             border: none;
             border-radius: 12px;
             padding: 18px 48px;
@@ -380,8 +378,10 @@
         }
 
         .language-option.selected {
-            border-color: #3b82f6;
-            background: #eff6ff;
+            border-color: #FF8A5B;
+            background: linear-gradient(135deg, #FFF5F0 0%, #FFE8DD 100%);
+            box-shadow: 0 8px 25px rgba(255, 107, 53, 0.25);
+            transform: translateY(-2px);
         }
 
         .language-option .language-icon {
@@ -418,8 +418,8 @@
 
         .level-option.selected,
         .level-option.border-indigo-500 {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ffa07a 100%);
-            border-color: transparent;
+            background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%);
+            color: white;
             transform: translateY(-6px);
             box-shadow: 0 8px 20px rgba(255, 107, 107, 0.4);
         }

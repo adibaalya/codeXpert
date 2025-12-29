@@ -9,9 +9,9 @@
     }
 
     .page-title {
-        font-size: 36px;
+        font-size: 42px;
         font-weight: 800;
-        background-image: linear-gradient(to right,rgb(250, 90, 75) 10%,rgb(250, 90, 75));
+        background-image: linear-gradient(135deg, rgb(235, 51, 73) 0%, rgb(244, 92, 67) 50%, rgb(235, 51, 73) 100%);
         -webkit-background-clip: text; 
         background-clip: text; 
         -webkit-text-fill-color: transparent; 
@@ -25,7 +25,7 @@
     }
 
     .featured-challenge {
-        background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%);
+        background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
         border-radius: 20px;
         padding: 32px;
         margin-bottom: 32px;
@@ -123,8 +123,8 @@
     }
 
     .featured-btn {
-        background: white;
-        color: #FF6B35;
+        background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%);
+        color: white;
         border: none;
         padding: 14px 32px;
         border-radius: 12px;
@@ -330,7 +330,7 @@
     }
 
     .hackathon-card-button.primary {
-        background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%);
+        background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%);
         color: white;
     }
 

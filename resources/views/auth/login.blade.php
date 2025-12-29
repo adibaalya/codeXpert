@@ -20,14 +20,19 @@
             
             roleButtons.forEach(button => {
                 button.addEventListener('click', function() {
-                    roleButtons.forEach(btn => btn.classList.remove('role-btn-active'));
-                    this.classList.add('role-btn-active');
+                    // 1. Remove 'active' from all buttons
+                    roleButtons.forEach(btn => btn.classList.remove('active'));
                     
+                    // 2. Add 'active' to clicked button
+                    this.classList.add('active');
+                    
+                    // 3. Update hidden input
                     const role = this.getAttribute('data-role');
                     if (roleInput) {
                         roleInput.value = role;
                     }
                     
+                    // 4. Update social URL params
                     updateSocialButtonUrls(role);
                 });
             });
@@ -49,7 +54,7 @@
     <div class="header">
         <div class="header-content">
             <div class="logo">
-                <img src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+                <img src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
             </div>
             <span class="logo-text">CodeXpert</span>
         </div>
@@ -93,7 +98,7 @@
         <div class="form-section">
             <div class="form-container">
                 <div class="form-logo">
-                    <img src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+                    <img src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
                 </div>
                 
                 <h1 class="welcome-title">Welcome Back!</h1>

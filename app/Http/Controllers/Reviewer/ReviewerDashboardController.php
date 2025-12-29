@@ -47,11 +47,18 @@ class ReviewerDashboardController extends Controller
     {
         $reviewer = Auth::guard('reviewer')->user();
         
-        // Get competency test result
-        $competencyResult = \App\Models\CompetencyTestResult::where('reviewer_ID', $reviewer->reviewer_ID)
+        // Get all competency test results that were passed, grouped by language with highest scores only
+        $competencyResults = \App\Models\CompetencyTestResult::where('reviewer_ID', $reviewer->reviewer_ID)
             ->where('passed', true)
-            ->latest()
-            ->first();
+            ->orderBy('total_score', 'desc')
+            ->orderBy('completed_at', 'desc')
+            ->get()
+            ->groupBy('language')
+            ->map(function($languageResults) {
+                // Return only the highest score for each language (first item after sorting by score desc)
+                return $languageResults->first();
+            })
+            ->values(); // Reset array keys
         
         // Calculate statistics
         $stats = [
@@ -61,7 +68,7 @@ class ReviewerDashboardController extends Controller
             'currentStreak' => \App\Models\ReviewerSession::getCurrentStreak($reviewer->reviewer_ID)
         ];
         
-        return view('reviewer.profile', compact('reviewer', 'competencyResult', 'stats'));
+        return view('reviewer.profile', compact('reviewer', 'competencyResults', 'stats'));
     }
 
     /**
@@ -81,13 +88,26 @@ class ReviewerDashboardController extends Controller
             return redirect()->back()->with('error', 'No competency test certificate available.');
         }
         
+        // Generate certificate ID only if it doesn't exist
+        if (empty($competencyResult->certificate_id)) {
+            $certificate_id = $competencyResult->id . '-' . $competencyResult->reviewer_ID . '-' . strtoupper($competencyResult->language);
+            
+            // Store the certificate ID in the database
+            $competencyResult->certificate_id = $certificate_id;
+            $competencyResult->save();
+        } else {
+            // Use the existing certificate ID
+            $certificate_id = $competencyResult->certificate_id;
+        }
+        
         // Prepare data for the certificate
         $data = [
             'name' => $reviewer->username,
             'language' => $competencyResult->language,
             'date' => $competencyResult->completed_at->format('d F Y'),
             'score' => $competencyResult->total_score,
-            'plagiarism_score' => $competencyResult->plagiarism_score
+            'plagiarism_score' => $competencyResult->plagiarism_score,
+            'certificate_id' => $certificate_id
         ];
         
         // Generate PDF
@@ -126,9 +146,9 @@ class ReviewerDashboardController extends Controller
                     return [
                         'id' => $question->question_ID,
                         'title' => $question->title ?? 'Untitled Question',
-                        'description' => $firstQuestion->description ?? 'No description available',
-                        'problem_statement' => $firstQuestion->problem_statement ?? 'No problem statement available',
-                        'constraints' => $firstQuestion->constraints ?? 'No constraints available',
+                        'description' => $question->description ?? 'No description available',
+                        'problem_statement' => $question->problem_statement ?? 'No problem statement available',
+                        'constraints' => $question->constraints ?? 'No constraints available',
                         'difficulty' => ucfirst($question->level ?? 'intermediate'),
                         'language' => $question->language,
                         'category' => $question->questionCategory ?? 'General',
@@ -452,9 +472,28 @@ class ReviewerDashboardController extends Controller
             $question->options = $validated['options'];
         }
         
-        // Update test cases for coding questions
-        if ($question->questionType !== 'MCQ_Single' && isset($validated['test_cases'])) {
-            $question->testCases = $validated['test_cases'];
+        // Update test cases for coding questions - store in input/expected_output columns
+        if ($question->questionType !== 'MCQ_Single' && isset($validated['test_cases']) && is_array($validated['test_cases'])) {
+            // Extract inputs and expected outputs from test cases
+            $inputs = [];
+            $outputs = [];
+            
+            foreach ($validated['test_cases'] as $testCase) {
+                if (isset($testCase['input'])) {
+                    $inputs[] = $testCase['input'];
+                }
+                if (isset($testCase['expected_output'])) {
+                    $outputs[] = $testCase['expected_output'];
+                }
+            }
+            
+            // Store in the existing input and expected_output columns
+            if (!empty($inputs)) {
+                $question->input = $inputs;
+            }
+            if (!empty($outputs)) {
+                $question->expected_output = $outputs;
+            }
         }
         
         $question->save();

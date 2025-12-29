@@ -236,7 +236,7 @@
         }
     </style>
 </head>
-<body class="code-test-body">
+<body class="code-test-body-reviewer">
     <div class="feedback-container">
         <div class="feedback-card">
             <!-- Header with icon and title -->
@@ -319,8 +319,8 @@
                             </div>
                             <div class="test-detail-row">
                                 <div class="test-detail-label">Your Output:</div>
-                                <div class="test-detail-value {{ in_array($result['actual'], ['Hidden', 'Passed', 'Failed']) ? 'hidden-text' : '' }}">
-                                    {{ $result['actual'] }}
+                                <div class="test-detail-value {{ in_array($result['output'] ?? '', ['Hidden', 'Passed', 'Failed']) ? 'hidden-text' : '' }}">
+                                    {{ $result['output'] ?? 'N/A' }}
                                 </div>
                             </div>
                         </div>

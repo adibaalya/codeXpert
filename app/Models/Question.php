@@ -29,10 +29,12 @@ class Question extends Model
         'chapter',
         'hint',
         'input',
-        'expectedAnswer',
         'grading_details',
         'good_ratings',
-        'bad_ratings'
+        'bad_ratings',
+        'function_name',
+        'return_type',
+        'function_parameters'
     ];
 
     protected $casts = [
@@ -40,6 +42,7 @@ class Question extends Model
         'input' => 'array',
         'expected_output' => 'array',
         'grading_details' => 'array',
+        'function_parameters' => 'array',
     ];
 
     /**

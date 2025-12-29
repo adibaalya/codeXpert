@@ -13,7 +13,7 @@
     <!-- Header -->
     <div class="header">
         <div class="logo-container">
-            <img class="logo" src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+            <img class="logo" src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
             <span class="logo-text">CodeXpert</span>
         </div>
         
@@ -21,7 +21,7 @@
             <nav class="nav-menu">
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.dashboard') }}'">Dashboard</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.review') }}'" >Review</button>
-                <button class="nav-item active" onclick="window.location.href='{{ route('reviewer.generate') }}'">Generate</button>
+                <button class="nav-item active-reviewer" onclick="window.location.href='{{ route('reviewer.generate') }}'">Generate</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.history') }}'">History</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.profile') }}'">Profile</button>
             </nav>
@@ -31,13 +31,13 @@
                     <div class="user-name">{{ $reviewer->username }}</div>
                     <div class="user-role">Reviewer</div>
                 </div>
-                <div class="user-avatar" onclick="toggleUserMenu(event)">
+                <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
                     {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
                 </div>
                 
                 <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
-                    <div class="user-dropdown-header">
+                    <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
                             {{ strtoupper(substr($reviewer->username, 0, 2)) }}
                         </div>
@@ -129,9 +129,6 @@
                     </div>
 
                     <button type="submit" class="btn-generate" id="generateBtn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/>
-                        </svg>
                         Generate Question
                     </button>
                 </form>

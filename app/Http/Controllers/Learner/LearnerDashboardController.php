@@ -33,7 +33,8 @@ class LearnerDashboardController extends Controller
         $nextLevelXP = $levelProgress['xp_for_next_level'];
         $xpProgress = $levelProgress['percentage'];
         
-        $currentStreak = $learner->streak ?? 0;
+        // Calculate actual streak based on consecutive days of attempts
+        $currentStreak = $learner->getCurrentStreak();
         $achievements = $this->getAchievementsCount($learner);
         
         // Get weekly practice data
@@ -159,6 +160,9 @@ class LearnerDashboardController extends Controller
     {
         $count = 0;
         
+        // Get current streak for achievements
+        $currentStreak = $learner->getCurrentStreak();
+        
         // Achievement: First Steps (Complete 1 question)
         if ($this->getQuestionsCompletedCount($learner) >= 1) $count++;
         
@@ -169,10 +173,10 @@ class LearnerDashboardController extends Controller
         if ($this->getQuestionsCompletedCount($learner) >= 50) $count++;
         
         // Achievement: Streak Keeper (7 day streak)
-        if ($learner->streak >= 7) $count++;
+        if ($currentStreak >= 7) $count++;
         
         // Achievement: Dedicated Learner (30 day streak)
-        if ($learner->streak >= 30) $count++;
+        if ($currentStreak >= 30) $count++;
         
         // Achievement: XP Hunter (Reach 1000 XP)
         if ($learner->totalPoint >= 1000) $count++;
@@ -468,8 +472,8 @@ class LearnerDashboardController extends Controller
             ];
         }
         
-        // Calculate statistics
-        $activeCount = $hackathons->where('status', 'live')->count();
+        // Calculate statistics - "Active" means upcoming hackathons (future events)
+        $activeCount = $hackathons->where('status', 'upcoming')->count();
         $totalPrizes = $hackathons->sum('prize_pool');
         $totalParticipants = $hackathons->sum('participants');
         

@@ -13,7 +13,7 @@
     <!-- Header -->
     <div class="header">
         <div class="logo-container">
-            <img class="logo" src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+            <img class="logo" src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
             <span class="logo-text">CodeXpert</span>
         </div>
         
@@ -108,10 +108,7 @@
             
             @if($learner->currentLevel ?? 0 >= 12)
             <div class="verified-badge">
-                <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                </svg>
-                <span>LEVEL {{ $learner->currentLevel ?? 12 }}</span>
+                <span> LEVEL {{ $learner->currentLevel ?? 12 }}</span>
             </div>
             @endif
             
@@ -153,8 +150,7 @@
                 <div class="left-column">
                     <div class="stats-section">
                         <h2 class="stats-title">Level Progress</h2>
-                        
-                        <div style="background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%); border-radius: 16px; padding: 20px; color: white;">
+                        <div style="background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%); border-radius: 16px; padding: 20px; color: white;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
                                 <div>
                                     <div style="font-size: 14px; opacity: 0.9; margin-bottom: 2px;">Level {{ $learner->currentLevel ?? 12 }}</div>
@@ -179,60 +175,62 @@
 
                     <!-- Language Proficiency Section -->
                     <div class="competency-section">
-                        <h2 class="section-title">Language Proficiency</h2>
-                        
-                        @forelse($learner->proficiencies ?? [] as $proficiency)
-                            @php
-                                $percentage = min(round(($proficiency['solved'] / $proficiency['total']) * 100), 100);
-                                $colorMap = [
-                                    'Python' => ['start' => '#4C6EF5', 'end' => '#364FC7'],
-                                    'JavaScript' => ['start' => '#F59E0B', 'end' => '#D97706'],
-                                    'Java' => ['start' => '#F97316', 'end' => '#EA580C'],
-                                    'C++' => ['start' => '#FF6B35', 'end' => '#FFB83D'],
-                                    'C#' => ['start' => '#8B5CF6', 'end' => '#7C3AED'],
-                                    'Ruby' => ['start' => '#CC342D', 'end' => '#991B1B'],
-                                    'PHP' => ['start' => '#6366F1', 'end' => '#4F46E5'],
-                                    'C' => ['start' => '#EF4444', 'end' => '#DC2626'],
-                                ];
-                                $colors = $colorMap[$proficiency['language']] ?? ['start' => '#6B7280', 'end' => '#4B5563'];
-                            @endphp
+                    <h2 class="stats-title">Level Progress</h2>
+                    @forelse($proficiencies as $proficiency)
+                        @php
+                            // Calculate percentage based on questions solved / total questions
+                            $solvedCount = $proficiency['solved'] ?? 0;
+                            $totalCount = $proficiency['total'] ?? 1; // Avoid division by zero
+                            $questionPercentage = $totalCount > 0 ? round(($solvedCount / $totalCount) * 100) : 0;
                             
-                            <div style="background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); border: 1px solid #e5e7eb; border-radius: 16px; padding: 20px; margin-bottom: 15px;">
-                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                            // Color mapping for different languages
+                            $colorMap = [
+                                'Python' => '#4C6EF5',
+                                'JavaScript' => '#F59E0B',
+                                'Java' => '#F97316',
+                                'C++' => '#EC4899',
+                                'C#' => '#8B5CF6',
+                                'Ruby' => '#CC342D',
+                                'PHP' => '#6366F1',
+                                'C' => '#EF4444',
+                            ];
+                            
+                            $color = $colorMap[$proficiency['language']] ?? '#6B7280';
+                        @endphp
+                        
+                        <div class="language-item" style="margin-bottom: 20px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 16px;">
+                                    <div style="width: 36px; height: 36px; background: {{ $color }}; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                                            <polyline points="16 18 22 12 16 6"></polyline>
+                                            <polyline points="8 6 2 12 8 18"></polyline>
+                                        </svg>
+                                    </div>
                                     <div>
-                                        <h4 style="font-size: 16px; font-weight: 700; color: #2d2d2d; margin-bottom: 4px;">{{ $proficiency['language'] }}</h4>
-                                        <p style="font-size: 13px; color: #8e8e93;">{{ $proficiency['level'] ?? 'Beginner' }}</p>
-                                    </div>
-                                    <div style="text-align: right;">
-                                        <div style="font-size: 24px; font-weight: 700; color: {{ $colors['start'] }};">{{ $proficiency['solved'] }}/{{ $proficiency['total'] }}</div>
-                                        <div style="font-size: 12px; color: #8e8e93;">problems solved</div>
+                                        <h4 style="font-size: 18px; font-weight: 700; color: #1F2937; margin: 0 0 2px 0;">{{ $proficiency['language'] }}</h4>
+                                        <p style="font-size: 12px; color: #6B7280; margin: 0;">{{ $proficiency['solved'] }}/{{ $proficiency['total'] }} problems</p>
                                     </div>
                                 </div>
-                                <div style="margin-top: 15px;">
-                                    <div class="progress-bar-container">
-                                        <div class="progress-bar" style="width: {{ $percentage }}%; background: linear-gradient(90deg, {{ $colors['start'] }} 0%, {{ $colors['end'] }} 100%);"></div>
-                                    </div>
+                                <div style="background: {{ $color }}; color: white; padding: 5px 15px; border-radius: 20px; font-size: 16px; font-weight: 500;">
+                                    {{ $questionPercentage }}%
                                 </div>
-                                <div style="margin-top: 10px; font-size: 12px; color: #6e6e73; text-align: right;">{{ $percentage }}%</div>
                             </div>
-                        @empty
-                            <div style="background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); border: 1px solid #e5e7eb; border-radius: 16px; padding: 40px 20px; text-align: center;">
-                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" style="margin: 0 auto 16px;">
-                                    <polyline points="16 18 22 12 16 6"></polyline>
-                                    <polyline points="8 6 2 12 8 18"></polyline>
-                                </svg>
-                                <h4 style="font-size: 16px; font-weight: 700; color: #2d2d2d; margin-bottom: 8px;">No Languages Selected</h4>
-                                <p style="font-size: 14px; color: #8e8e93; margin-bottom: 20px;">Start your coding journey by selecting your preferred programming languages.</p>
-                                <button class="challenge-start-btn" onclick="window.location.href='{{ route('learner.customization') }}'" style="display: inline-block;">
-                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; margin-right: 8px;">
-                                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                                    </svg>
-                                    Add Languages
-                                </button>
+                            <div style="width: 100%; height: 12px; background: #E5E7EB; border-radius: 12px; overflow: hidden;">
+                                <div style="height: 100%; background: {{ $color }}; border-radius: 12px; width: {{ $questionPercentage }}%; transition: width 0.5s ease;"></div>
                             </div>
-                        @endforelse
-                    </div>
+                        </div>
+                    @empty
+                        <div style="text-align: center; padding: 40px 20px;">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" style="margin: 0 auto 16px;">
+                                <polyline points="16 18 22 12 16 6"></polyline>
+                                <polyline points="8 6 2 12 8 18"></polyline>
+                            </svg>
+                            <h4 style="font-size: 16px; font-weight: 600; color: #4B5563; margin-bottom: 8px;">No Languages Selected</h4>
+                            <p style="font-size: 14px; color: #9CA3AF;">Start your coding journey by selecting languages</p>
+                        </div>
+                    @endforelse
+                </div>
 
                     <!-- Achievements Section -->
                     <div class="achievements-section">
@@ -305,20 +303,7 @@
                             <div class="stat-label">Success Rate</div>
                             <div class="stat-value">{{ $learner->successRate ?? 89 }}%</div>
                         </div>
-                        
-                        <div class="stat-divider"></div>
-                        
-                        <div class="stat-item-vertical">
-                            <div class="stat-label">Total Time Coding</div>
-                            <div class="stat-value">{{ $learner->totalTimeCoding ?? '20h 25m' }}</div>
-                        </div>
-                        
-                        <div class="stat-divider"></div>
-                        
-                        <div class="stat-item-vertical">
-                            <div class="stat-label">Global Rank</div>
-                            <div class="stat-value">#{{ $learner->globalRank ?? 35 }}</div>
-                        </div>
+
                     </div>
                 </div>
             </div>

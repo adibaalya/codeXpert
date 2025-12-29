@@ -19,7 +19,7 @@
         .logo {
             width: 48px;
             height: 48px;
-            background: linear-gradient(135deg, #FF6B35, #FFB83D);
+            background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%);
             border-radius: 12px;
             display: flex;
             align-items: center;
@@ -32,7 +32,8 @@
         .logo-text {
             font-size: 25px; 
             font-weight: 800; 
-            background-image: linear-gradient(to right,rgb(250, 90, 75) 30%,rgb(251, 192, 90));
+            /* Deep Violet to Dark Slate Gradient */
+            background-image: linear-gradient(to right, rgb(106, 17, 203), rgb(252, 102, 37));
             -webkit-background-clip: text; 
             background-clip: text; 
             -webkit-text-fill-color: transparent; 
@@ -64,11 +65,21 @@
         }
 
         .nav-item.active {
-            background: linear-gradient(to right, #FF6B35, #FFB83D);
+            background: linear-gradient(135deg, rgb(255, 65, 108) 0%, rgb(255, 75, 43) 50%, rgb(255, 140, 0) 100%);
             color: white;
         }
 
         .nav-item:hover:not(.active) {
+            background: #F3F4F6;
+            color: #1F2937;
+        }
+
+        .nav-item.active-reviewer {
+            background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
+            color: white;
+        }
+
+        .nav-item:hover:not(.active-reviewer) {
             background: #F3F4F6;
             color: #1F2937;
         }
@@ -98,7 +109,23 @@
         .user-avatar {
             width: 44px;
             height: 44px;
-            background: linear-gradient(135deg, #FF6B35, #FFB83D);
+            background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            overflow: hidden;
+        }
+
+        .user-avatar-reviewer {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -152,12 +179,24 @@
             }
         }
 
+        /* REVIEWER*/
+        .user-dropdown-header-reviewer {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 20px;
+            background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
+            color: white;
+        }
+
+        /*LEARNER*/
+
         .user-dropdown-header {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 20px;
-            background: linear-gradient(135deg, #FF6B35, #FFB83D);
+            background: linear-gradient(135deg, rgb(255, 65, 108) 0%, rgb(255, 75, 43) 50%, rgb(255, 140, 0) 100%);
             color: white;
         }
 

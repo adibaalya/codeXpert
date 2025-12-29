@@ -14,7 +14,7 @@
     <!-- Header -->
     <div class="header">
         <div class="logo-container">
-            <img class="logo" src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+            <img class="logo" src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
             <span class="logo-text">CodeXpert</span>
         </div>
         
@@ -132,9 +132,6 @@
                     <span class="stat-badge urgent">{{ $currentStreak > 0 ? 'Hot!' : 'Start!' }}</span>
                 </div>
                 <div class="stat-value">{{ $currentStreak }}</div>
-                <div class="stat-progress">
-                    <div class="stat-progress-bar" style="width: {{ min(($currentStreak / 30) * 100, 100) }}%"></div>
-                </div>
                 <div class="stat-footer">{{ $currentStreak > 0 ? 'days in a row' : 'Start practicing today!' }}</div>
             </div>
 
@@ -145,9 +142,6 @@
                     <span class="stat-badge trending">{{ $achievements > 0 ? '↗' : '🎖️' }}</span>
                 </div>
                 <div class="stat-value">{{ $achievements }}</div>
-                <div class="stat-progress">
-                    <div class="stat-progress-bar" style="width: {{ min(($achievements / 8) * 100, 100) }}%"></div>
-                </div>
                 <div class="stat-footer">{{ 8 - $achievements }} more to unlock</div>
             </div>
         </div>
@@ -232,7 +226,7 @@
                                 'Python' => '#4C6EF5',
                                 'JavaScript' => '#F59E0B',
                                 'Java' => '#F97316',
-                                'C++' => '#FF6B35',
+                                'C++' => '#EC4899',
                                 'C#' => '#8B5CF6',
                                 'Ruby' => '#CC342D',
                                 'PHP' => '#6366F1',
@@ -435,8 +429,8 @@
                         if (!chartArea) return null;
                         
                         const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-                        gradient.addColorStop(0, '#FFB83D');
-                        gradient.addColorStop(1, '#FF6B35');
+                        gradient.addColorStop(0, 'rgb(255, 87, 34)');
+                        gradient.addColorStop(1, 'rgb(255, 167, 38)');
                         return gradient;
                     },
                     borderRadius: 8,

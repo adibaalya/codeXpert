@@ -20,7 +20,7 @@
 
         body {
             font-family: 'Inter', sans-serif;
-            background: #FEF8F5;
+            background: rgb(248, 244, 253);
             min-height: 100vh;
         }
 
@@ -36,9 +36,9 @@
         }
 
         .page-title {
-            font-size: 36px;
+            font-size: 42px;
             font-weight: 800;
-            background-image: linear-gradient(to right,rgb(250, 90, 75) 30%,rgb(251, 192, 90));
+            background-image: linear-gradient(135deg,rgb(92, 33, 195) 0%,rgb(118, 47, 183) 50%,rgb(120, 33, 201) 100%);
             -webkit-background-clip: text; 
             background-clip: text; 
             -webkit-text-fill-color: transparent; 
@@ -111,7 +111,7 @@
 
         .filter-select:focus {
             outline: none;
-            border-color: #FF6B35;
+            border-color: rgb(92, 33, 195);
         }
 
         .search-input {
@@ -127,8 +127,8 @@
 
         .search-input:focus {
             outline: none;
-            border-color: #FF6B35;
-            box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+            border-color: rgb(92, 33, 195);
+            box-shadow: 0 0 0 3px rgba(164, 53, 255, 0.1);
         }
 
         /* Questions List */
@@ -149,9 +149,9 @@
         }
 
         .question-card:hover {
-            border-color: #FF6B35;
+            border-color: rgb(92, 33, 195);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.15);
+            box-shadow: 0 4px 12px rgba(164, 53, 255, 0.15);
         }
 
         .question-header {

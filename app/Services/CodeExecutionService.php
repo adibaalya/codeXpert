@@ -765,120 +765,220 @@ class CodeExecutionService
         }
     }
 
-    /**
-     * Build Java driver script - Optimized for LeetCode style
-     */
-    /**
-     * Build Java driver script - Optimized for LeetCode style
-     */
     private function buildJavaDriver($userCode, $inputData, $functionName, $parameters)
     {
-        // 1. Handle Raw Input Parsing (Same as before)
-        $hasRawInput = isset($inputData['input']) && is_string($inputData['input']);
-        if ($hasRawInput) {
-            $parsedVars = $this->parseVariableString($inputData['input']);
-            if (!empty($parsedVars)) {
-                $inputData = array_merge($inputData, $parsedVars);
-                unset($inputData['input']);
-            }
-        }
-        unset($inputData['test_case']);
-        unset($inputData['expected']);
+        // --- STEP 1: Handle User Imports ---
+        $userImports = [];
+        $userCodeClean = preg_replace_callback('/^\s*import\s+[\w\.*]+;\s*$/m', function($matches) use (&$userImports) {
+            $userImports[] = trim($matches[0]);
+            return ''; 
+        }, $userCode);
 
-        // 2. Handle Imports
-        $imports = [];
-        $codeWithoutImports = $userCode;
-        if (preg_match_all('/^\s*import\s+[\w.*]+\s*;\s*$/m', $userCode, $matches)) {
-            $imports = $matches[0];
-            $codeWithoutImports = preg_replace('/^\s*import\s+[\w.*]+\s*;\s*$/m', '', $userCode);
-        }
+        // --- STEP 2: Generate Header ---
+        $script = "import java.util.*;\n";
+        $script .= "import java.util.stream.*;\n";
+        $script .= "import java.io.*;\n";
+        $script .= implode("\n", array_unique($userImports)) . "\n\n";
         
-        // 3. Start Script Generation
-        $script = "";
-        $script .= "import java.util.*;\n"; 
-        $script .= "import java.util.stream.*;\n"; 
-        foreach ($imports as $import) {
-            if (stripos($import, 'java.util') === false) {
-                $script .= trim($import) . "\n";
+        // --- STEP 3: Auto-Detect Function Name & Types (GENERIC-SAFE) ---
+        $paramTypes = []; 
+        
+        // A. Find the method signature
+        $paramsString = "";
+        if (empty($functionName)) {
+            if (preg_match('/public\s+(?:static\s+)?(?:[\w<>[\]]+\s+)(\w+)\s*\(([^)]*)\)/', $userCodeClean, $matches)) {
+                $functionName = $matches[1];
+                $paramsString = $matches[2];
+            } else {
+                $functionName = "unknownFunction";
+            }
+        } else {
+            if (preg_match('/public\s+(?:static\s+)?(?:[\w<>[\]]+\s+)' . preg_quote($functionName, '/') . '\s*\(([^)]*)\)/', $userCodeClean, $matches)) {
+                $paramsString = $matches[1];
             }
         }
-        $script .= "\n";
+
+        // B. Robust Parsing of "Map<String, Integer> map, int k"
+        if (!empty($paramsString)) {
+            // Replace commas inside <...> with a placeholder so explode() doesn't break them
+            $cleanParams = "";
+            $balance = 0;
+            for ($i = 0; $i < strlen($paramsString); $i++) {
+                $char = $paramsString[$i];
+                if ($char === '<') $balance++;
+                if ($char === '>') $balance--;
+                
+                if ($char === ',' && $balance > 0) {
+                    $cleanParams .= "###COMMA###"; // Placeholder
+                } else {
+                    $cleanParams .= $char;
+                }
+            }
+            
+            // Now safely explode by comma
+            $args = explode(',', $cleanParams);
+            
+            foreach ($args as $arg) {
+                // Restore the original comma
+                $arg = str_replace("###COMMA###", ",", trim($arg));
+                
+                // Regex to split "Type Name" (Name is the last word)
+                if (preg_match('/^(.*)\s+(\w+)$/', $arg, $parts)) {
+                    $pType = trim($parts[1]);
+                    $pName = trim($parts[2]);
+                    $paramTypes[$pName] = $pType;
+                }
+            }
+        }
 
         $script .= "public class Main {\n";
-        
-        // === NEW HELPER METHOD FOR PRINTING ARRAYS ===
-        $script .= "    // Helper to print arrays correctly (fixes [I@... output)\n";
-        $script .= "    public static void printResult(Object o) {\n";
-        $script .= "        if (o == null) { \n";
-        $script .= "            System.out.println(\"null\");\n";
-        $script .= "        } else if (o instanceof int[]) { \n";
-        $script .= "            System.out.println(Arrays.toString((int[]) o));\n";
-        $script .= "        } else if (o instanceof double[]) { \n";
-        $script .= "            System.out.println(Arrays.toString((double[]) o));\n";
-        $script .= "        } else if (o instanceof boolean[]) { \n";
-        $script .= "            System.out.println(Arrays.toString((boolean[]) o));\n";
-        $script .= "        } else if (o instanceof Object[]) { \n";
-        $script .= "            // Handles String[], Integer[], and 2D arrays like int[][]\n";
-        $script .= "            System.out.println(Arrays.deepToString((Object[]) o));\n";
-        $script .= "        } else { \n";
-        $script .= "            System.out.println(o);\n";
-        $script .= "        }\n";
-        $script .= "    }\n\n";
-        // =============================================
-
         $script .= "    public static void main(String[] args) {\n";
-        $script .= "        try {\n";
+        $script .= "        Solution sol = new Solution();\n";
         
-        $actualParams = array_keys($inputData);
+        // --- STEP 4: Inject Variables ---
+        $actualParams = array_filter(array_keys($inputData), function($k) {
+            return !in_array($k, ['test_case', 'input', 'output']);
+        });
 
-        // Generate Variable Definitions
         foreach ($actualParams as $key) {
             $value = $inputData[$key];
-            $script .= "            " . $this->formatJavaVariableAdvanced($key, $value) . "\n";
-        }
-
-        $script .= "\n";
-
-        // Detect Class & Method Name
-        $className = "Solution"; 
-        if (preg_match('/\bclass\s+(\w+)/', $codeWithoutImports, $matches)) {
-            $className = $matches[1];
+            // Pass the correctly detected type (e.g. Map<String, Integer>)
+            $enforcedType = isset($paramTypes[$key]) ? $paramTypes[$key] : null;
+            $script .= "        " . $this->formatJavaVariable($key, $value, $enforcedType) . "\n";
         }
         
-        $methodName = $functionName;
-        if (!$methodName) {
-            if (preg_match('/public\s+[\w<>\[\]]+\s+(\w+)\s*\(/', $codeWithoutImports, $matches)) {
-                $methodName = $matches[1];
+        $paramsList = implode(', ', $actualParams);
+
+        // --- STEP 5: Call Function & Print Result ---
+        $returnType = 'Object'; 
+        if (preg_match('/^\s*public\s+(?:static\s+)?([a-zA-Z0-9_<>\[\]]+)\s+' . preg_quote($functionName, '/') . '\s*\(/m', $userCodeClean, $matches)) {
+            $returnType = trim($matches[1]);
+        }
+        
+        if ($returnType === 'void') {
+            $script .= "        sol.{$functionName}({$paramsList});\n";
+            $script .= "        System.out.println(\"null\");\n";
+        } else {
+            $script .= "        {$returnType} result = sol.{$functionName}({$paramsList});\n";
+            
+            if (strpos($returnType, '[][]') !== false) {
+                $script .= "        System.out.println(Arrays.deepToString(result));\n";
+            } elseif (strpos($returnType, '[]') !== false) {
+                $script .= "        System.out.println(Arrays.toString(result));\n";
             } else {
-                $methodName = "solve"; 
+                $script .= "        System.out.println(result);\n";
             }
         }
 
-        // Instantiate and Call
-        $script .= "            {$className} sol = new {$className}();\n";
-        
-        $paramNames = implode(', ', $actualParams);
-        
-        if (empty($actualParams)) {
-             $script .= "            System.out.println(\"Error: No input variables found.\");\n";
-        }
-
-        // Execute
-        $script .= "            Object result = sol.{$methodName}({$paramNames});\n";
-        
-        // Use the new helper to print
-        $script .= "            printResult(result);\n";
-
-        $script .= "        } catch (Exception e) {\n";
-        $script .= "            e.printStackTrace();\n";
-        $script .= "        }\n";
         $script .= "    }\n";
         $script .= "}\n\n";
 
-        $userCodeCleaned = preg_replace('/\bpublic\s+class\s+/', 'class ', $codeWithoutImports);
-        $script .= $userCodeCleaned;
-
+        // --- STEP 6: Append User Code ---
+        if (preg_match('/\bclass\s+\w+/', $userCodeClean)) {
+            // Remove 'public' from 'public class Solution' to avoid filename mismatch
+            $script .= preg_replace('/public\s+class\s+Solution/', 'class Solution', $userCodeClean);
+        } else {
+            $script .= "class Solution {\n";
+            $script .= $userCodeClean . "\n";
+            $script .= "}\n";
+        }
+        
         return $script;
+    }
+
+    /**
+     * Helper: Format PHP data into Java Variable Declarations
+     * Handles primitives, 1D/2D arrays, and Maps.
+     */
+    private function formatJavaVariable($name, $value, $enforcedType = null)
+    {
+        // --- 1. Handle Maps (FIX FOR YOUR ERROR) ---
+        // If the detected type is a Map (e.g. Map<String, Integer>), we build a HashMap.
+        if ($enforcedType && strpos($enforcedType, 'Map') !== false && is_array($value)) {
+            // Default types
+            $keyType = 'String'; 
+            $valType = 'Integer';
+            
+            // Try to extract specific types from Map<K, V>
+            if (preg_match('/Map\s*<\s*([a-zA-Z0-9_]+)\s*,\s*([a-zA-Z0-9_]+)\s*>/', $enforcedType, $matches)) {
+                $keyType = $matches[1];
+                $valType = $matches[2];
+            }
+
+            // Generate Map initialization code
+            // We use a multi-line string to create the map and add items one by one.
+            $lines = [];
+            $lines[] = "Map<{$keyType}, {$valType}> {$name} = new HashMap<>();";
+            
+            foreach ($value as $k => $v) {
+                // Format the Key
+                $kFormatted = ($keyType === 'String') ? "\"$k\"" : $k;
+                
+                // Format the Value
+                $vFormatted = $v;
+                if ($valType === 'String') {
+                    $vFormatted = "\"$v\"";
+                } elseif ($valType === 'Boolean') {
+                    $vFormatted = ($v ? 'true' : 'false');
+                }
+                
+                $lines[] = "{$name}.put({$kFormatted}, {$vFormatted});";
+            }
+            
+            // Return the code block, joined with proper indentation
+            return implode("\n        ", $lines);
+        }
+
+        // --- 2. Handle 2D Arrays (Existing Logic) ---
+        if ($enforcedType === 'char[][]' && is_array($value)) {
+            $rows = [];
+            foreach ($value as $subArr) {
+                $charRow = array_map(function($v) { return "'" . $v . "'"; }, $subArr);
+                $rows[] = "{" . implode(', ', $charRow) . "}";
+            }
+            return "char[][] {$name} = { " . implode(', ', $rows) . " };";
+        }
+
+        // --- 3. Handle 1D Character Arrays ---
+        if ($enforcedType === 'char[]' && is_array($value)) {
+            $vals = implode(', ', array_map(function($v) { return "'$v'"; }, $value));
+            return "char[] {$name} = {{$vals}};";
+        }
+
+        // --- 4. Standard Auto-Detection (Fallback) ---
+        if (is_int($value)) {
+            return "int {$name} = {$value};";
+        } elseif (is_float($value)) {
+            return "double {$name} = {$value};";
+        } elseif (is_bool($value)) {
+            return "boolean {$name} = " . ($value ? 'true' : 'false') . ";";
+        } elseif (is_string($value)) {
+            return "String {$name} = \"" . addslashes($value) . "\";";
+        } elseif (is_array($value)) {
+            if (empty($value)) return "int[] {$name} = {};";
+            
+            $first = reset($value);
+            
+            // 2D Array
+            if (is_array($first)) {
+                $rows = [];
+                foreach ($value as $subArr) {
+                    if (empty($subArr)) $rows[] = "{}";
+                    else $rows[] = "{" . implode(', ', $subArr) . "}";
+                }
+                return "int[][] {$name} = { " . implode(', ', $rows) . " };";
+            }
+            
+            // 1D Array
+            if (is_int($first)) {
+                return "int[] {$name} = {" . implode(', ', $value) . "};";
+            } elseif (is_string($first)) {
+                $vals = implode(', ', array_map(function($v) { return "\"$v\""; }, $value));
+                return "String[] {$name} = {{$vals}};";
+            }
+        }
+        
+        return "Object {$name} = null;";
     }
 
     
@@ -1016,99 +1116,6 @@ class CodeExecutionService
     }
 
     /**
-     * Format Java variable with support for Maps, Lists, and Nested types
-     */
-    private function formatJavaVariable($name, $value)
-    {
-        // 1. Handle Lists/Arrays
-        if (is_array($value)) {
-            if (empty($value)) {
-                // Default to simple int array if empty, as it's most common
-                return "int[] {$name} = {};";
-            }
-
-            $firstKey = array_key_first($value);
-            $firstValue = $value[$firstKey];
-            
-            // ==========================================
-            // CASE A: MAP (Associative Array)
-            // ==========================================
-            if (!is_numeric($firstKey)) {
-                $keyType = is_string($firstKey) ? 'String' : 'Object';
-                
-                // Check if values are nested Lists (Map<String, List<...>>)
-                $isNestedList = is_array($firstValue);
-                
-                if ($isNestedList) {
-                    $innerFirst = !empty($firstValue) ? reset($firstValue) : null;
-                    $innerType = is_int($innerFirst) ? "Integer" : "String";
-                    $valueType = "List<{$innerType}>";
-                } else {
-                    $valueType = is_int($firstValue) ? "Integer" : (is_float($firstValue) ? "Double" : "String");
-                }
-                
-                $code = "Map<{$keyType}, {$valueType}> {$name} = new HashMap<>();\n";
-                foreach ($value as $k => $v) {
-                    $formattedKey = is_string($k) ? "\"{$k}\"" : $k;
-                    
-                    if ($isNestedList) {
-                        $processedItems = array_map(function($item) {
-                            return is_string($item) ? "\"{$item}\"" : $item;
-                        }, $v);
-                        
-                        $listContent = implode(', ', $processedItems);
-                        $formattedValue = "Arrays.asList({$listContent})";
-                    } else {
-                        $formattedValue = is_string($v) ? "\"{$v}\"" : (is_bool($v) ? ($v ? 'true' : 'false') : $v);
-                    }
-                    
-                    $code .= "            {$name}.put({$formattedKey}, {$formattedValue});\n";
-                }
-                return rtrim($code);
-            }
-            
-            // ==========================================
-            // CASE B: STANDARD LIST/ARRAY
-            // ==========================================
-            else {
-                if (is_string($firstValue)) {
-                    // String list -> List<String> (Strings are rarely String[])
-                    $args = implode(', ', array_map(function($v) { return "\"{$v}\""; }, $value));
-                    return "List<String> {$name} = new ArrayList<>(Arrays.asList({$args}));";
-                } 
-                elseif (is_int($firstValue)) {
-                    // *** FIX: FORCE PRIMITIVE int[] for integers ***
-                    $args = implode(', ', $value);
-                    return "int[] {$name} = {{$args}};";
-                } 
-                elseif (is_float($firstValue)) {
-                    // *** FIX: FORCE PRIMITIVE double[] for decimals ***
-                    $args = implode(', ', $value);
-                    return "double[] {$name} = {{$args}};";
-                }
-                else {
-                    // Fallback for mixed/objects
-                    $args = implode(', ', $value);
-                    return "Object[] {$name} = {{$args}};";
-                }
-            }
-        } 
-        
-        // 2. Handle Primitives (String, boolean, int, double)
-        elseif (is_string($value)) {
-            return "String {$name} = \"" . addslashes($value) . "\";";
-        } elseif (is_bool($value)) {
-            return "boolean {$name} = " . ($value ? 'true' : 'false') . ";";
-        } elseif (is_int($value)) {
-            return "int {$name} = {$value};";
-        } elseif (is_float($value)) {
-            return "double {$name} = {$value};";
-        } else {
-            return "Object {$name} = null;";
-        }
-    }
-
-    /**
      * Robust PHP Driver - Forces output and handles errors
      */
     private function buildPHPDriver($userCode, $inputData, $functionName, $parameters)
@@ -1220,108 +1227,186 @@ class CodeExecutionService
     }
 
     /**
-     * Build C++ driver script with LeetCode-style support
-     * Includes helper templates for printing complex types
+     * Build C++ driver script with Support for 2D Vectors and JSON-like output
      */
     private function buildCppDriver($userCode, $inputData, $functionName, $parameters)
     {
-        // Essential headers
-        $script = "#include <iostream>\n#include <vector>\n#include <string>\n#include <algorithm>\n#include <map>\n#include <unordered_map>\n#include <set>\n#include <stack>\n#include <queue>\n#include <sstream>\nusing namespace std;\n\n";
-
-        // --- FIX: REORDERED PRINT HELPERS ---
-        // We declare prototypes first or define base types BEFORE containers
-        $script .= <<<'EOT'
-        // Forward declaration for nested vectors
-        template<typename T> void printResult(const vector<T>& v);
-
-        // 1. Helper: Print string (Specific override)
-        void printResult(const string& s) {
-            cout << "\"" << s << "\"";
-        }
+        // --- FIX 1: Suppress Warnings ---
+        $script = "#pragma GCC diagnostic ignored \"-Wsign-compare\"\n";
         
-        // 2. Helper: Print basic types (Base case: int, bool, float)
-        // This MUST be defined before the vector helper uses it
-        template<typename T>
-        void printResult(const T& x) {
-            if constexpr (is_same_v<T, bool>) {
-                cout << (x ? "true" : "false");
-            } else {
-                cout << x;
+        $script .= "#include <iostream>\n";
+        $script .= "#include <vector>\n";
+        $script .= "#include <string>\n";
+        $script .= "#include <algorithm>\n";
+        $script .= "#include <map>\n";
+        $script .= "#include <unordered_map>\n";
+        $script .= "using namespace std;\n\n";
+
+        // --- STEP 1: Handle Class Wrapping ---
+        if (strpos($userCode, 'class Solution') !== false) {
+            $script .= $userCode . "\n";
+        } else {
+            $script .= "class Solution {\npublic:\n";
+            $script .= $userCode . "\n";
+            $script .= "};\n";
+        }
+
+        // --- STEP 2: Function & Type Detection ---
+        $paramTypes = [];
+        $returnType = "auto"; 
+        
+        if (preg_match('/(?:^|\s)([\w<>:&*]+)\s+(\w+)\s*\(([^)]*)\)/', $userCode, $matches)) {
+            if (empty($functionName)) {
+                $functionName = $matches[2];
             }
-        }
-
-        // 3. Helper: Print vector (Recursive container)
-        template<typename T>
-        void printResult(const vector<T>& v) {
-            cout << "[";
-            for(size_t i=0; i<v.size(); ++i) {
-                cout << (i==0?"":",");
-                printResult(v[i]); // Now valid because base types are defined above
-            }
-            cout << "]";
-        }
-        EOT;
-        $script .= "\n\n";
-
-        $script .= "// --- USER CODE ---\n";
-        $script .= $userCode . "\n";
-        $script .= "// -----------------\n\n";
-
-        $script .= "int main() {\n";
-        
-        // Filter metadata
-        $actualParams = array_filter(array_keys($inputData), function($k) {
-            return !in_array($k, ['test_case', 'input', 'output']);
-        });
-
-        // Inject inputs
-        foreach ($actualParams as $key) {
-            $script .= "    " . $this->formatCppVariableAdvanced($key, $inputData[$key]) . "\n";
-        }
-
-        // Auto-detect function name
-        $hasClass = preg_match('/class\s+Solution/', $userCode);
-        
-        if (empty($functionName)) {
-            if ($hasClass) {
-                // Look for method inside Solution class
-                if (preg_match('/(?:int|void|bool|string|vector|double|float|long|ListNode|TreeNode)\s*(?:<[^>]+>)?\s*[*&]*\s+(\w+)\s*\(/', $userCode, $matches)) {
-                    $functionName = $matches[1];
-                } else {
-                    $functionName = "solve"; 
-                }
-            } else {
-                // Look for standalone function (excluding main)
-                if (preg_match_all('/(?:int|void|bool|string|vector|double|float|long)\s*(?:<[^>]+>)?\s*[*&]*\s+(\w+)\s*\(/', $userCode, $matches)) {
-                    foreach ($matches[1] as $match) {
-                        if ($match !== 'main' && $match !== 'printResult') { // Exclude helpers
-                            $functionName = $match;
-                            break;
-                        }
+            if ($functionName === $matches[2]) {
+                $returnType = trim($matches[1]);
+                $argsRaw = $matches[3];
+                $args = explode(',', $argsRaw);
+                foreach ($args as $arg) {
+                    $arg = trim($arg);
+                    if (preg_match('/^(.+?)\s+([a-zA-Z0-9_]+)$/', $arg, $pMatches)) {
+                        $pType = str_replace(['&', 'const '], '', trim($pMatches[1]));
+                        $pName = trim($pMatches[2]);
+                        $paramTypes[$pName] = $pType;
                     }
                 }
             }
         }
+        
+        if (empty($functionName)) $functionName = "unknown_function";
 
-        $paramsList = implode(', ', $actualParams);
-        $callCode = "";
+        $script .= "\nint main() {\n";
+        $script .= "    Solution sol;\n";
 
-        if ($hasClass) {
-            $script .= "    Solution sol;\n";
-            $validFunc = !empty($functionName) ? $functionName : "solve";
-            $callCode = "sol.{$validFunc}({$paramsList})";
-        } else {
-            $validFunc = !empty($functionName) ? $functionName : "solve";
-            $callCode = "{$validFunc}({$paramsList})";
+        // --- STEP 3: Inject Variables ---
+        $actualParams = array_filter(array_keys($inputData), function($k) {
+            return !in_array($k, ['test_case', 'input', 'output']);
+        });
+
+        foreach ($actualParams as $key) {
+            $value = $inputData[$key];
+            $enforcedType = isset($paramTypes[$key]) ? $paramTypes[$key] : null;
+            $script .= "    " . $this->formatCppVariable($key, $value, $enforcedType) . "\n";
         }
 
-        // Capture and Print
-        $script .= "    auto result = {$callCode};\n";
-        $script .= "    printResult(result);\n";
+        // --- STEP 4: Call Function & Print (THE FIX IS HERE) ---
+        $paramsList = implode(', ', $actualParams);
+        
+        if ($returnType === 'void') {
+            $script .= "    sol.{$functionName}({$paramsList});\n";
+            $script .= "    cout << \"null\" << endl;\n";
+        } else {
+            $script .= "    auto result = sol.{$functionName}({$paramsList});\n";
+            
+            // --- Logic to Print Result based on Type ---
+            
+            // Check if return type needs quotes (strings or chars)
+            $needsQuotes = (strpos($returnType, 'string') !== false || strpos($returnType, 'char') !== false);
+            
+            // Case A: 2D Vector (vector<vector<T>>)
+            if (strpos($returnType, 'vector<vector') !== false) {
+                $script .= "    cout << \"[\";\n";
+                $script .= "    for (size_t i = 0; i < result.size(); ++i) {\n";
+                $script .= "        cout << \"[\";\n";
+                $script .= "        for (size_t j = 0; j < result[i].size(); ++j) {\n";
+                if ($needsQuotes) {
+                    $script .= "            cout << \"\\\"\" << result[i][j] << \"\\\"\";\n";
+                } else {
+                    $script .= "            cout << result[i][j];\n";
+                }
+                $script .= "            if (j < result[i].size() - 1) cout << \",\";\n";
+                $script .= "        }\n";
+                $script .= "        cout << \"]\";\n";
+                $script .= "        if (i < result.size() - 1) cout << \",\";\n";
+                $script .= "    }\n";
+                $script .= "    cout << \"]\" << endl;\n";
+            }
+            // Case B: 1D Vector (vector<T>)
+            elseif (strpos($returnType, 'vector') !== false) {
+                $script .= "    cout << \"[\";\n";
+                $script .= "    for (size_t i = 0; i < result.size(); ++i) {\n";
+                if ($needsQuotes) {
+                    $script .= "        cout << \"\\\"\" << result[i] << \"\\\"\";\n";
+                } else {
+                    $script .= "        cout << result[i];\n";
+                }
+                $script .= "        cout << (i < result.size() - 1 ? \",\" : \"\");\n";
+                $script .= "    }\n";
+                $script .= "    cout << \"]\" << endl;\n";
+            }
+            // Case C: Boolean
+            elseif ($returnType === 'bool') {
+                // If expected output is 1/0, use integer logic. If true/false, use boolalpha.
+                // Standardizing to true/false for JSON compatibility usually works best, 
+                // but for specific C++ challenges that expect 1, use: result ? 1 : 0
+                $script .= "    cout << (result ? \"true\" : \"false\") << endl;\n"; 
+            }
+            // Case D: Primitives (int, string, double)
+            else {
+                $script .= "    cout << result << endl;\n";
+            }
+        }
+
         $script .= "    return 0;\n";
         $script .= "}\n";
-
+        
         return $script;
+    }
+
+    /**
+     * Helper: Format C++ Variable Declaration
+     */
+    private function formatCppVariable($name, $value, $enforcedType = null)
+    {
+        // Check if we need to force Char format ('A' vs "A")
+        $isCharType = ($enforcedType && strpos($enforcedType, 'char') !== false);
+
+        if (is_array($value)) {
+            if (empty($value)) {
+                $type = $enforcedType ?: "vector<int>";
+                return "{$type} {$name} = {};";
+            }
+
+            $first = reset($value);
+            
+            // 2D Vector
+            if (is_array($first)) {
+                $rows = [];
+                foreach ($value as $subArr) {
+                    $elems = array_map(function($v) use ($isCharType) {
+                        if ($isCharType) return "'{$v}'"; // Force single quotes
+                        return is_string($v) ? "\"{$v}\"" : $v;
+                    }, $subArr);
+                    $rows[] = "{" . implode(',', $elems) . "}";
+                }
+                $type = $enforcedType ?: "vector<vector<int>>";
+                return "{$type} {$name} = {" . implode(',', $rows) . "};";
+            }
+            
+            // 1D Vector
+            $elems = array_map(function($v) use ($isCharType) {
+                if ($isCharType) return "'{$v}'";
+                return is_string($v) ? "\"{$v}\"" : $v;
+            }, $value);
+            
+            // Fallback Type Inference if detection failed
+            $type = $enforcedType;
+            if (!$type) {
+                if (is_string($first)) $type = "vector<string>";
+                elseif (is_float($first)) $type = "vector<double>";
+                else $type = "vector<int>";
+            }
+            
+            return "{$type} {$name} = {" . implode(',', $elems) . "};";
+        }
+        
+        // Scalars
+        if (is_bool($value)) return "bool {$name} = " . ($value ? 'true' : 'false') . ";";
+        if (is_string($value)) return "string {$name} = \"{$value}\";";
+        if (is_float($value)) return "double {$name} = {$value};";
+        
+        return "int {$name} = {$value};";
     }
     
     /**
@@ -1382,7 +1467,7 @@ class CodeExecutionService
     }
 
     /**
-     * Build C driver script with robust Type Detection and Pointer support
+     * Build C driver script with Fix for Array Syntax "type name[]"
      */
     private function buildCDriver($userCode, $inputData, $functionName, $parameters)
     {
@@ -1395,106 +1480,184 @@ class CodeExecutionService
         $script .= "// --- USER CODE START ---\n";
         $script .= $userCode . "\n";
         
-        // --- FIX 1: Auto-close missing braces ---
+        // Auto-close missing braces
         $openBraces = substr_count($userCode, '{');
         $closeBraces = substr_count($userCode, '}');
         if ($openBraces > $closeBraces) {
-            $needed = $openBraces - $closeBraces;
-            $script .= "\n" . str_repeat("}\n", $needed);
+            $script .= "\n" . str_repeat("}\n", $openBraces - $closeBraces);
         }
-        
         $script .= "// --- USER CODE END ---\n\n";
         
-        // 1. Auto-Detect Function Signature
+        // --- STEP 1: Detect Function Signature ---
         $returnType = 'int'; 
-        
-        if (!$functionName) {
-            // Find function definition (heuristic: first function that isn't main)
-            if (preg_match('/^\s*((?:const\s+)?(?:unsigned\s+)?\w+(?:\s*\*)*)\s+(\w+)\s*\(/m', $userCode, $matches)) {
+        $funcArgs = []; 
+        $foundFunction = false;
+
+        // Try to find the function signature using regex
+        // We look for: ReturnType FunctionName ( Arguments )
+        if ($functionName) {
+            $pattern = '/^\s*((?:const\s+)?(?:unsigned\s+)?\w+(?:\s*\*)*)\s+' . preg_quote($functionName, '/') . '\s*\(([^)]*)\)/m';
+            if (preg_match($pattern, $userCode, $matches)) {
                 $returnType = trim($matches[1]);
-                $functionName = $matches[2];
+                $rawArgs = $matches[2];
+                $foundFunction = true;
             }
-        } else {
-            // If function name is known, find its specific return type
-            if (preg_match('/^\s*((?:const\s+)?(?:unsigned\s+)?\w+(?:\s*\*)*)\s+' . preg_quote($functionName, '/') . '\s*\(/m', $userCode, $matches)) {
-                $returnType = trim($matches[1]);
+        } 
+        
+        // Fallback: Scan for the first valid function if name not known or not found
+        if (!$foundFunction) {
+            if (preg_match_all('/^\s*((?:const\s+)?(?:unsigned\s+)?\w+(?:\s*\*)*)\s+(\w+)\s*\(([^)]*)\)/m', $userCode, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $match) {
+                    $t = trim($match[1]);
+                    $n = trim($match[2]);
+                    if (in_array($n, ['main', 'if', 'for', 'while', 'switch'])) continue;
+                    $returnType = $t;
+                    $functionName = $n;
+                    $rawArgs = $match[3];
+                    $foundFunction = true;
+                    break;
+                }
+            }
+        }
+        
+        // --- FIX: Robust Argument Parsing for "int arr[]" syntax ---
+        if ($foundFunction && !empty($rawArgs)) {
+            $argsSplit = explode(',', $rawArgs);
+            foreach ($argsSplit as $arg) {
+                $arg = trim($arg);
+                if (empty($arg)) continue;
+                
+                // Regex to split Type and Name
+                // Captures: "int *", "ptr" OR "int", "arr[]"
+                // Now supports "[]" suffix in the name part
+                if (preg_match('/^(.*[\s*])(\w+)(\[\])?$/', $arg, $parts)) {
+                    $type = trim($parts[1]);
+                    $name = trim($parts[2]); // The name without []
+                    $isArray = isset($parts[3]) && $parts[3] === '[]';
+                    
+                    // If it had [], treat it as a pointer type
+                    if ($isArray) {
+                        $type .= '*'; 
+                    }
+
+                    $funcArgs[] = [
+                        'type' => $type,
+                        'name' => $name
+                    ];
+                }
             }
         }
 
         $script .= "int main() {\n";
         
-        // 2. Inject Variables
-        $actualParams = array_filter(array_keys($inputData), function($k) {
+        // --- STEP 2: Inject Input Variables ---
+        $actualParams = array_values(array_filter(array_keys($inputData), function($k) {
             return !in_array($k, ['test_case', 'input', 'output']);
-        });
+        }));
 
         foreach ($actualParams as $key) {
             $value = $inputData[$key];
             $script .= "    " . $this->formatCVariable($key, $value) . "\n";
+            $script .= "    (void){$key};\n"; // Suppress unused variable warning
         }
         
-        // 3. Call Function & Print Result
-        if ($functionName) {
-            $paramsList = implode(', ', $actualParams);
-            $cleanType = str_replace(' ', '', $returnType); // Remove spaces for easier checking (e.g. "int *")
-            
-            // A. Handle Void Return
-            if ($returnType === 'void') {
-                $script .= "    {$functionName}({$paramsList});\n";
-                $script .= "    printf(\"Function executed (void return).\\n\");\n";
-            } 
-            // B. Handle Known Types
-            else {
-                $script .= "    {$returnType} result = {$functionName}({$paramsList});\n";
+        // --- STEP 3: Build Function Call (Smart Mapping) ---
+        $callArgs = [];
+        $resultSizeVar = null;
+        $usedInputIndices = []; 
+        
+        if (!empty($funcArgs)) {
+            foreach ($funcArgs as $i => $arg) {
+                $pName = $arg['name'];
+                $pType = $arg['type'];
                 
-                // Helper to check for pointers (look for *)
-                $isPointer = strpos($returnType, '*') !== false;
-                
-                if ($isPointer) {
-                     // --- FIX 2: Enhanced Pointer Handling ---
-                     
-                     // Case: String (char*)
-                     if (strpos($cleanType, 'char*') !== false) {
-                         $script .= "    if (result) printf(\"%s\", result); else printf(\"null\");\n";
-                     } 
-                     // Case: Integer Array (int*)
-                     elseif (strpos($cleanType, 'int*') !== false) {
-                         // Heuristic to guess array size for printing
-                         $sizeExpr = "10"; // Fallback
-                         if (in_array('sizeA', $actualParams) && in_array('sizeB', $actualParams)) {
-                             $sizeExpr = "sizeA + sizeB";
-                         } elseif (in_array('n', $actualParams)) {
-                             $sizeExpr = "n";
-                         }
-
-                         $script .= "    printf(\"[\");\n";
-                         // Protect against null pointer before looping
-                         $script .= "    if (result == NULL) { printf(\"null\"); } else {\n";
-                         $script .= "        for(int i=0; i < ({$sizeExpr}); i++) {\n";
-                         $script .= "            printf(\"%d\", result[i]);\n";
-                         $script .= "            if (i < ({$sizeExpr}) - 1) printf(\", \");\n";
-                         $script .= "        }\n";
-                         $script .= "    }\n";
-                         $script .= "    printf(\"]\");\n";
-                     }
-                     else {
-                         // Default Pointer Address
-                         $script .= "    printf(\"Result Pointer: %p\", (void*)result);\n";
-                     }
+                // 1. EXACT Name Match (Best Case)
+                if (in_array($pName, $actualParams)) {
+                    $callArgs[] = $pName;
+                    $keyIndex = array_search($pName, $actualParams);
+                    if ($keyIndex !== false) $usedInputIndices[] = $keyIndex;
+                } 
+                // 2. Output Size Pointer (e.g. int* returnSize)
+                elseif (strpos($pType, '*') !== false && strpos($pType, 'int') !== false && strpos(strtolower($pName), 'return') !== false) {
+                    $script .= "    int {$pName} = 0; \n";
+                    $callArgs[] = "&{$pName}";
+                    $resultSizeVar = $pName;
                 }
-                elseif ($returnType === 'bool') {
-                    $script .= "    printf(result ? \"true\" : \"false\");\n";
-                }
-                elseif (strpos($returnType, 'float') !== false || strpos($returnType, 'double') !== false) {
-                    $script .= "    printf(\"%.5f\", result);\n";
-                }
+                // 3. Positional Mapping (Fallback)
                 else {
-                    // Default to int
-                    $script .= "    printf(\"%d\", result);\n";
+                    // Grab the first unused input from DB
+                    $found = false;
+                    foreach ($actualParams as $index => $paramName) {
+                        if (!in_array($index, $usedInputIndices)) {
+                            // Basic Type Check (Optional but safer)
+                            // If arg is int* (array), map to array input
+                            // If arg is int, map to int input
+                            // For now, we trust the order matches standard convention
+                            
+                            $callArgs[] = $paramName;
+                            $usedInputIndices[] = $index;
+                            $found = true;
+                            break;
+                        }
+                    }
+                    if (!$found) $callArgs[] = "0"; 
                 }
             }
         } else {
-             $script .= "    printf(\"Error: Could not detect function name in C code.\\n\");\n";
+            // Parser Failed? Dump inputs in order
+            $callArgs = $actualParams;
+        }
+
+        // --- STEP 4: Call & Print ---
+        $paramString = implode(', ', $callArgs);
+        
+        if ($returnType === 'void') {
+            $script .= "    {$functionName}({$paramString});\n";
+            $script .= "    printf(\"null\");\n";
+        } else {
+            $script .= "    {$returnType} result = {$functionName}({$paramString});\n";
+            
+            $cleanType = str_replace(' ', '', $returnType);
+            
+            // Handle Arrays (int*)
+            if (strpos($cleanType, 'int*') !== false) {
+                $sizeExpr = "10"; 
+                if ($resultSizeVar) {
+                    $sizeExpr = $resultSizeVar;
+                } elseif (in_array('returnSize', $actualParams)) {
+                    $sizeExpr = "returnSize";
+                } elseif (in_array('size', $actualParams)) {
+                    $sizeExpr = "size";
+                } elseif (in_array('n', $actualParams)) {
+                    $sizeExpr = "n";
+                } 
+                elseif (!empty($actualParams)) {
+                    foreach ($actualParams as $p) {
+                        if (strpos(strtolower($p), 'size') !== false || $p === 'n' || $p === 'len') {
+                            $sizeExpr = $p;
+                            break;
+                        }
+                    }
+                }
+
+                $script .= "    printf(\"[\");\n";
+                $script .= "    if (result == NULL) { printf(\"null\"); } else {\n";
+                $script .= "        for(int i=0; i < ({$sizeExpr}); i++) {\n";
+                $script .= "            printf(\"%d\", result[i]);\n";
+                $script .= "            if (i < ({$sizeExpr}) - 1) printf(\", \");\n";
+                $script .= "        }\n";
+                $script .= "    }\n";
+                $script .= "    printf(\"]\");\n";
+            } 
+            elseif (strpos($cleanType, 'char*') !== false) {
+                 $script .= "    if (result) printf(\"%s\", result); else printf(\"null\");\n";
+            }
+            elseif ($cleanType === 'bool') {
+                 $script .= "    printf(result ? \"true\" : \"false\");\n";
+            }
+            else {
+                 $script .= "    printf(\"%d\", result);\n";
+            }
         }
         
         $script .= "\n    return 0;\n";

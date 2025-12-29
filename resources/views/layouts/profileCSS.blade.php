@@ -7,9 +7,15 @@
 
     body {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background: #FEF8F5;
+        background: #FFF9F9;
         color: #333;
         line-height: 1.6;
+    }
+
+    .reviewer-body {
+        font-family: 'Inter', sans-serif;
+        background:rgb(248, 244, 253);
+        min-height: 100vh;
     }
 
     .profile-container {
@@ -37,12 +43,31 @@
         height: 120px;
         margin: 0 auto 20px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%);
+        background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%);
         display: flex;
         align-items: center;
         justify-content: center;
         box-shadow: 0 8px 24px rgba(255, 107, 53, 0.3);
         overflow: hidden;
+    }
+
+    .profile-avatar-reviewer {
+        width: 120px;
+        height: 120px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 24px rgba(164, 53, 255, 0.3);
+        overflow: hidden;
+    }
+
+    .profile-avatar-reviewer svg {
+        width: 60px;
+        height: 60px;
+        color: white;
     }
 
     .profile-avatar svg {
@@ -92,6 +117,33 @@
         letter-spacing: 0.5px;
     }
 
+    /* reviewer */
+    .verified-badge-reviewer {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(218, 53, 255, 0.1);
+        border: 1px solid rgba(167, 53, 255, 0.3);
+        border-radius: 20px;
+        padding: 8px 16px;
+        margin: 20px auto;
+        display: flex;
+        width: fit-content;
+    }
+
+    .verified-badge-reviewer  svg {
+        width: 16px;
+        height: 16px;
+        color: rgb(92, 33, 195);
+    }
+
+    .verified-badge-reviewer  span {
+        font-size: 11px;
+        font-weight: 700;
+        color: rgb(92, 33, 195);
+        letter-spacing: 0.5px;
+    }
+
     .profile-info-section {
         margin-top: 30px;
         padding-top: 25px;
@@ -114,6 +166,47 @@
 
     .profile-info-item .info-content {
         flex: 1;
+    }
+
+    /* reviewer */
+    .profile-info-item-reviewer {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .profile-info-item-reviewer svg {
+        width: 18px;
+        height: 18px;
+        color: rgb(92, 33, 195);
+        flex-shrink: 0;
+    }
+
+    .profile-info-item-reviewer .info-content {
+        flex: 1;
+    }
+
+    .challenge-start-btn-reviewer {
+        background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
+        color: white;
+        padding: 14px 32px;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(164, 53, 255,  0.4);
+    }
+
+    .challenge-start-btn-reviewer:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(164, 53, 255, 0.5);
+    }
+
+    .challenge-start-btn-reviewer:active {
+        transform: translateY(0);
     }
 
     .info-label {
@@ -299,7 +392,7 @@
         border: 1px solid #e5e7eb;
         border-radius: 16px;
         padding: 20px;
-        margin-bottom: 25px;
+        margin-bottom: 10px;
     }
 
     .certification-info h4 {
@@ -348,6 +441,7 @@
         border: 1px solid #f0f0f0;
         border-radius: 16px;
         padding: 24px;
+        margin-bottom: 15px;
     }
 
     .score-header {
@@ -493,34 +587,6 @@
     .achievement-content p {
         font-size: 12px;
         color: #8e8e93;
-    }
-
-    /* Floating Action Button */
-    .floating-badge {
-        position: fixed;
-        top: 30px;
-        right: 30px;
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #FF8C69 0%, #FF6B9D 100%);
-        box-shadow: 0 8px 24px rgba(255, 107, 157, 0.4);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: transform 0.2s;
-        z-index: 100;
-    }
-
-    .floating-badge:hover {
-        transform: scale(1.1) rotate(5deg);
-    }
-
-    .floating-badge svg {
-        width: 28px;
-        height: 28px;
-        color: white;
     }
 
     /* Responsive Design */

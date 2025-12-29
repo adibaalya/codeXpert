@@ -16,7 +16,7 @@
     <!-- Header -->
     <div class="header">
         <div class="logo-container">
-            <img class="logo" src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+            <img class="logo" src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
             <span class="logo-text">CodeXpert</span>
         </div>
         
@@ -34,13 +34,13 @@
                     <div class="user-name">{{ Auth::guard('reviewer')->user()->username }}</div>
                     <div class="user-role">Reviewer</div>
                 </div>
-                <div class="user-avatar" onclick="toggleUserMenu(event)">
+                <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
                     {{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 0, 1)) }}{{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 1, 1) ?? '') }}
                 </div>
                 
                 <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
-                    <div class="user-dropdown-header">
+                    <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
                             {{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 0, 2)) }}
                         </div>

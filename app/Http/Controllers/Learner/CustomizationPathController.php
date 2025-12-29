@@ -22,12 +22,12 @@ class CustomizationPathController extends Controller
 
         // Available languages
         $availableLanguages = [
-            'Java' => 'orange',
-            'JavaScript' => 'yellow',
-            'Python' => 'blue',
-            'C' => 'blue',
-            'C++' => 'purple',
-            'SQL' => 'teal',
+            'Python' => '#4C6EF5',
+            'JavaScript' => '#F59E0B',
+            'Java' => '#F97316',
+            'C++' => '#EC4899',
+            'PHP' => '#6366F1',
+            'C' => '#EF4444',
         ];
 
         return view('learner.customizationPath', compact('learner', 'addedLanguages', 'availableLanguages'));

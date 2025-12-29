@@ -7,7 +7,7 @@
 
     body {
         font-family: 'Inter', sans-serif;
-        background: #FEF8F5;
+        background: #FFF9F9;
         min-height: 100vh;
     }
 
@@ -23,9 +23,9 @@
     }
 
     .practice-title {
-        font-size: 36px;
+        font-size: 42px;
         font-weight: 800;
-        background-image: linear-gradient(to right,rgb(250, 90, 75) 10%,rgb(250, 90, 75));
+        background-image: linear-gradient(135deg, rgb(235, 51, 73) 0%, rgb(244, 92, 67) 50%, rgb(235, 51, 73) 100%);
         -webkit-background-clip: text; 
         background-clip: text; 
         -webkit-text-fill-color: transparent; 
@@ -348,7 +348,7 @@
     }
 
     .start-button {
-        background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%);
+        background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%);
         color: white;
         border: none;
         padding: 18px 50px;

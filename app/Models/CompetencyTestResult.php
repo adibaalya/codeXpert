@@ -17,7 +17,8 @@ class CompetencyTestResult extends Model
         'passed',
         'mcq_answers',
         'code_solutions',
-        'completed_at'
+        'completed_at',
+        'certificate_id'
     ];
 
     protected $casts = [

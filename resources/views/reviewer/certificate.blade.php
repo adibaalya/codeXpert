@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <title>Certificate of {{ ucfirst($language) }} Competency</title>
     @include('layouts.certificationCSS')
+    
 </head>
 <body>
 
-    <div class="paper">
+<div class="paper">
         <div class="bg-pattern"></div>
         
         <div class="frame">
@@ -32,6 +33,10 @@
                 <div class="skill-box">
                     <div class="skill-label">Verified Language Specialization</div>
                     <div class="skill-name">{{ strtoupper($language) }}</div>
+                </div>
+
+                <div class="cert-footer">
+                    <div class="cert-id">CID: {{ $certificate_id }}</div>
                 </div>
 
                 <div>

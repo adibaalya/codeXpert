@@ -12,14 +12,14 @@
     <!-- Header -->
     <div class="header">
         <div class="logo-container">
-            <img class="logo" src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+            <img class="logo" src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
             <span class="logo-text">CodeXpert</span>
         </div>
         
         <div class="header-right">
             <nav class="nav-menu">
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.dashboard') }}'">Dashboard</button>
-                <button class="nav-item active">Review</button>
+                <button class="nav-item active-reviewer">Review</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.generate') }}'">Generate</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.history') }}'">History</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.profile') }}'">Profile</button>
@@ -30,13 +30,13 @@
                     <div class="user-name">{{ $reviewer->username }}</div>
                     <div class="user-role">Reviewer</div>
                 </div>
-                <div class="user-avatar" onclick="toggleUserMenu(event)">
+                <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
                     {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
                 </div>
                 
                 <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
-                    <div class="user-dropdown-header">
+                    <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
                             {{ strtoupper(substr($reviewer->username, 0, 2)) }}
                         </div>
@@ -259,7 +259,6 @@
                 </div>
             @else
                 <div class="empty-content">
-                    <div class="empty-content-icon">📝</div>
                     <h2 class="empty-content-title">No Questions Available</h2>
                     <p class="empty-content-text">There are no pending questions that match your qualifications at the moment.</p>
                     @if(empty($qualifiedLanguages))
@@ -1046,8 +1045,10 @@
             const approveBtn = document.getElementById('approveBtn');
 
             const contentArea = document.querySelector('.content-area');
-            const problemBoxes = contentArea.querySelectorAll('.problem-box');
+            const problemBoxes = contentArea.querySelectorAll('#problem-section .problem-box');
             const hintBox = contentArea.querySelector('.hint-box');
+            const testCaseBoxes = contentArea.querySelectorAll('#testcases-section .test-case-box');
+            const solutionBox = contentArea.querySelector('#solution-section .solution-box');
 
             if (editBtn.style.display !== 'none') {
                 // Enter edit mode
@@ -1070,6 +1071,24 @@
                     hintBox.contentEditable = 'true';
                     hintBox.classList.add('editable');
                 }
+
+                // Make test cases editable
+                testCaseBoxes.forEach(box => {
+                    const codeBlocks = box.querySelectorAll('.code-block');
+                    codeBlocks.forEach(block => {
+                        block.contentEditable = 'true';
+                        block.classList.add('editable');
+                    });
+                });
+
+                // Make solution editable
+                if (solutionBox) {
+                    const solutionContent = solutionBox.querySelector('.code-block, .answer-display');
+                    if (solutionContent) {
+                        solutionContent.contentEditable = 'true';
+                        solutionContent.classList.add('editable');
+                    }
+                }
             } else {
                 // Exit edit mode
                 editBtn.style.display = 'inline-flex';
@@ -1090,6 +1109,24 @@
                     hintBox.contentEditable = 'false';
                     hintBox.classList.remove('editable');
                 }
+
+                // Make test cases non-editable
+                testCaseBoxes.forEach(box => {
+                    const codeBlocks = box.querySelectorAll('.code-block');
+                    codeBlocks.forEach(block => {
+                        block.contentEditable = 'false';
+                        block.classList.remove('editable');
+                    });
+                });
+
+                // Make solution non-editable
+                if (solutionBox) {
+                    const solutionContent = solutionBox.querySelector('.code-block, .answer-display');
+                    if (solutionContent) {
+                        solutionContent.contentEditable = 'false';
+                        solutionContent.classList.remove('editable');
+                    }
+                }
             }
         }
 
@@ -1100,7 +1137,7 @@
             }
 
             const contentArea = document.querySelector('.content-area');
-            const problemBoxes = contentArea.querySelectorAll('.problem-box');
+            const problemBoxes = contentArea.querySelectorAll('#problem-section .problem-box');
             
             // Get the text content from each problem box
             const description = problemBoxes[0] ? problemBoxes[0].querySelector('.problem-text').innerHTML : '';
@@ -1108,6 +1145,34 @@
             const constraints = problemBoxes[2] ? problemBoxes[2].querySelector('.problem-text').innerHTML : '';
             const hintBox = contentArea.querySelector('.hint-box');
             const hint = hintBox ? hintBox.innerHTML : '';
+
+            // Get test cases
+            const testCaseBoxes = contentArea.querySelectorAll('#testcases-section .test-case-box');
+            const test_cases = [];
+            testCaseBoxes.forEach((box, index) => {
+                const codeBlocks = box.querySelectorAll('.code-block');
+                if (codeBlocks.length >= 2) {
+                    test_cases.push({
+                        input: codeBlocks[0].textContent.trim(),
+                        expected_output: codeBlocks[1].textContent.trim()
+                    });
+                } else if (codeBlocks.length === 1) {
+                    test_cases.push({
+                        input: codeBlocks[0].textContent.trim(),
+                        expected_output: ''
+                    });
+                }
+            });
+
+            // Get solution
+            const solutionBox = contentArea.querySelector('#solution-section .solution-box');
+            let solution = '';
+            if (solutionBox) {
+                const solutionContent = solutionBox.querySelector('.code-block, .answer-display');
+                if (solutionContent) {
+                    solution = solutionContent.textContent.trim();
+                }
+            }
 
             const saveBtn = document.getElementById('saveBtn');
             saveBtn.disabled = true;
@@ -1119,6 +1184,8 @@
                 problem_statement: problemStatement,
                 constraints: constraints,
                 hint: hint,
+                test_cases: test_cases.length > 0 ? test_cases : null,
+                solution: solution,
                 _token: '{{ csrf_token() }}'
             };
 

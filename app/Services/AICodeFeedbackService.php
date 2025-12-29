@@ -18,9 +18,16 @@ class AICodeFeedbackService
      */
     public function generateFeedback(string $code, string $language, string $questionTitle, array $testResults): array
     {
-        $apiKey = config('services.gemini.api_key');
+        $geminiApiKey = env('GEMINI_API_KEY');
         
-        if (!$apiKey) {
+        Log::info('=== AI FEEDBACK GENERATION STARTED ===', [
+            'api_key_exists' => !empty($geminiApiKey),
+            'api_key_length' => strlen($geminiApiKey ?? ''),
+            'language' => $language,
+            'question' => $questionTitle
+        ]);
+        
+        if (!$geminiApiKey) {
             Log::warning('Gemini API key not configured');
             return $this->getFallbackFeedback();
         }
@@ -31,10 +38,25 @@ class AICodeFeedbackService
             $passedTests = collect($testResults)->where('passed', true)->count();
             $failedTests = $totalTests - $passedTests;
             
-            // Build the prompt
-            $prompt = $this->buildPrompt($code, $language, $questionTitle, $testResults, $passedTests, $totalTests);
+            // Get list of failed test numbers for better context
+            $failedTestNumbers = collect($testResults)
+                ->filter(fn($test) => !$test['passed'])
+                ->pluck('test_number')
+                ->implode(', ');
             
-            // Call Gemini API
+            Log::info('Test results summary', [
+                'total' => $totalTests,
+                'passed' => $passedTests,
+                'failed' => $failedTests,
+                'failed_test_numbers' => $failedTestNumbers
+            ]);
+            
+            // Build the prompt
+            $prompt = $this->buildPrompt($code, $language, $questionTitle, $testResults, $passedTests, $totalTests, $failedTestNumbers);
+            
+            Log::info('Calling Gemini API...', ['prompt_length' => strlen($prompt)]);
+            
+            // Call Gemini API using the same pattern as monthly generation
             $response = Http::timeout(30)
                 ->post("https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={$geminiApiKey}", [
                     'contents' => [
@@ -48,16 +70,36 @@ class AICodeFeedbackService
                     ],
                     'generationConfig' => [
                         'temperature' => 0.7,
-                        'maxOutputTokens' => 1000,
+                        'maxOutputTokens' => 2048,
                     ]
                 ]);
+            
+            Log::info('Gemini API Response received', [
+                'status' => $response->status(),
+                'successful' => $response->successful()
+            ]);
             
             if ($response->successful()) {
                 $responseData = $response->json();
                 $feedbackText = $responseData['candidates'][0]['content']['parts'][0]['text'] ?? '';
                 
+                Log::info('Gemini response parsed', [
+                    'has_feedback' => !empty($feedbackText),
+                    'feedback_length' => strlen($feedbackText),
+                    'full_response' => $feedbackText  // Log full response for debugging
+                ]);
+                
                 // Parse the feedback into structured sections
-                return $this->parseFeedback($feedbackText);
+                $parsed = $this->parseFeedback($feedbackText);
+                
+                Log::info('Feedback parsed into sections', [
+                    'correctness_length' => strlen($parsed['correctness'] ?? ''),
+                    'style_length' => strlen($parsed['style'] ?? ''),
+                    'errors_length' => strlen($parsed['errors'] ?? ''),
+                    'suggestions_length' => strlen($parsed['suggestions'] ?? '')
+                ]);
+                
+                return $parsed;
             } else {
                 Log::error('Gemini API error', [
                     'status' => $response->status(),
@@ -75,49 +117,53 @@ class AICodeFeedbackService
         }
     }
     
-    /**
-     * Build the prompt for AI analysis
-     */
-    private function buildPrompt(string $code, string $language, string $questionTitle, array $testResults, int $passedTests, int $totalTests): string
+
+    private function buildPrompt(string $code, string $language, string $questionTitle, array $testResults, int $passedTests, int $totalTests, string $failedTestNumbers): string
     {
         $testResultsSummary = $this->formatTestResultsSummary($testResults);
         
+        $failedTestsNote = !empty($failedTestNumbers) ? "\nFailed test cases: {$failedTestNumbers}" : "";
+        
         return <<<PROMPT
-You are an expert coding instructor. A student has submitted the following code in response to a coding question. Your task is to:
+You are a university lecturer reviewing a student's code submission. Provide specific, personalized feedback.
 
-**Check Correctness:**
-- Analyze if the code solves the problem as intended.
-- Highlight any logical or runtime errors.
+**CRITICAL RULES:**
+1. Be BRIEF and CONCISE - keep each section to 2-4 sentences maximum
+2. Write in a sincere, encouraging tone - like a mentor, not a formal document
+3. Every point MUST reference this specific student's code (variable names, logic choices, structure)
+4. Do NOT write greetings, conclusions, or numbered lists - just clear observations
+5. You MUST provide ALL 4 sections below
 
-**Evaluate Style and Readability:**
-- Assess variable/function naming, indentation, comments, and overall clarity.
-- Suggest improvements for better readability and maintainability.
+---
 
-**Error Pattern Analysis:**
-- Identify any recurring types of mistakes (e.g., off-by-one errors, misuse of loops, incorrect conditionals).
-- Point out patterns if the same mistakes occur multiple times.
+**Submission Context:**
+- Question: {$questionTitle}
+- Language: {$language}
+- Test Results: {$passedTests}/{$totalTests} passed{$failedTestsNote}
 
-**Provide Feedback and Suggestions:**
-- Give actionable advice for correcting errors.
-- Suggest ways to avoid similar mistakes in future coding exercises.
-
-**Question:** {$questionTitle}
-**Language:** {$language}
-**Test Results:** {$passedTests}/{$totalTests} test cases passed
-
-**Test Case Results:**
+**Test Details:**
 {$testResultsSummary}
 
-**Student Code:**
+**Student's Code:**
 ```{$language}
 {$code}
 ```
 
-Provide your feedback in a clear, structured format with these exact section headers:
+---
+
+**Output Format (REQUIRED - keep each section brief, 1 sentence):**
+
 ## Correctness
+[In 1 sentence: Does their logic work? If tests failed, explain why based on their specific code. If passed, acknowledge what they did right. Reference their actual code.]
+
 ## Style & Readability
+[In 1 sentence: Comment on their variable names, code structure, and readability. Be specific to what you see.]
+
 ## Error Analysis
+[In 1 sentence: What pattern do you notice in how they approached this? What assumption or mistake did they make? Keep it focused.]
+
 ## Suggestions
+[In 1 sentence: Give 1-2 concrete improvements they should make. Be practical and specific to their code.]
 PROMPT;
     }
     
@@ -143,11 +189,12 @@ PROMPT;
      */
     private function parseFeedback(string $feedbackText): array
     {
+        // Initialize sections as null to detect missing ones
         $sections = [
-            'correctness' => '',
-            'style' => '',
-            'errors' => '',
-            'suggestions' => ''
+            'correctness' => null,
+            'style' => null,
+            'errors' => null,
+            'suggestions' => null
         ];
         
         // Try to parse sections using headers
@@ -164,9 +211,14 @@ PROMPT;
             }
         }
         
-        // If parsing failed, return full text in suggestions
-        if (empty($sections['correctness']) && empty($sections['style']) && empty($sections['errors']) && empty($sections['suggestions'])) {
-            $sections['suggestions'] = $feedbackText;
+        // Get fallback feedback
+        $fallback = $this->getFallbackFeedback();
+        
+        // Use partial fallback: only fill in missing sections
+        foreach ($sections as $key => $value) {
+            if (empty($value)) {
+                $sections[$key] = $fallback[$key];
+            }
         }
         
         return $sections;

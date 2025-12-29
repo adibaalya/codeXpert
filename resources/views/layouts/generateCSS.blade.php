@@ -6,9 +6,9 @@
         }
 
         body {
-            font-family: 'Figtree', sans-serif;
-            background-color: #FEF8F5;
-            color: #1a1a1a;
+            font-family: 'Inter', sans-serif;
+            background:rgb(248, 244, 253);
+            min-height: 100vh;
         }
 
         .container {
@@ -22,9 +22,9 @@
         }
 
         .page-title {
-            font-size: 36px;
+            font-size: 42px;
             font-weight: 800;
-            background-image: linear-gradient(to right,rgb(250, 90, 75) 30%,rgb(251, 192, 90));
+            background-image: linear-gradient(135deg,rgb(92, 33, 195) 0%,rgb(118, 47, 183) 50%,rgb(120, 33, 201) 100%);
             -webkit-background-clip: text; 
             background-clip: text; 
             -webkit-text-fill-color: transparent; 
@@ -93,7 +93,7 @@
         .form-textarea:focus,
         .form-select:focus {
             outline: none;
-            border-color: #FF6B35;
+            border-color: rgb(92, 33, 195);
             box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
         }
 
@@ -112,7 +112,7 @@
         .btn-generate {
             width: 100%;
             padding: 14px 24px;
-            background: linear-gradient(to right, #FF4432, #FFB83D);
+            background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
             border: none;
             border-radius: 10px;
             color: white;
@@ -128,7 +128,7 @@
 
         .btn-generate:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+            box-shadow: 0 4px 12px rgba(164, 53, 255, 0.3);
         }
 
         .btn-generate:disabled {
@@ -218,7 +218,7 @@
         }
 
         .tab.active {
-            color: #FF6B35;
+            color: rgb(92, 33, 195);
         }
 
         .tab.active::after {
@@ -228,7 +228,7 @@
             left: 0;
             right: 0;
             height: 2px;
-            background: #FF6B35;
+            background: rgb(92, 33, 195);
         }
 
         .tab-content {
@@ -291,19 +291,19 @@
         }
 
         .btn:hover {
-            border-color: #FF6B35;
-            color: #FF6B35;
+            border-color: rgb(92, 33, 195);
+            color: rgb(92, 33, 195);
         }
 
         .btn-primary {
-            background: linear-gradient(to right, #FF4432, #FFB83D);
+            background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
             color: white;
             border: none;
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+            box-shadow: 0 4px 12px rgba(164, 53, 255, 0.3);
         }
 
         .loading {
@@ -315,7 +315,7 @@
             width: 50px;
             height: 50px;
             border: 4px solid #E5E7EB;
-            border-top-color: #FF6B35;
+            border-top-color: rgb(92, 33, 195);
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 16px;

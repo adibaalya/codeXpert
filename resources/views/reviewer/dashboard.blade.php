@@ -10,17 +10,17 @@
     @include('layouts.navCSS')
 
 </head>
-<body>
+<body class="reviewer-body">
     <!-- Header -->
     <div class="header">
         <div class="logo-container">
-            <img class="logo" src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+            <img class="logo" src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
             <span class="logo-text">CodeXpert</span>
         </div>
         
         <div class="header-right">
             <nav class="nav-menu">
-                <button class="nav-item active" onclick="window.location.href='{{ route('reviewer.dashboard') }}'">Dashboard</button>
+                <button class="nav-item active-reviewer" onclick="window.location.href='{{ route('reviewer.dashboard') }}'">Dashboard</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.review') }}'" >Review</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.generate') }}'">Generate</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('reviewer.history') }}'">History</button>
@@ -32,13 +32,13 @@
                     <div class="user-name">{{ $reviewer->username }}</div>
                     <div class="user-role">Reviewer</div>
                 </div>
-                <div class="user-avatar" onclick="toggleUserMenu(event)">
+                <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
                     {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
                 </div>
                 
                 <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
-                    <div class="user-dropdown-header">
+                    <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
                             {{ strtoupper(substr($reviewer->username, 0, 2)) }}
                         </div>
@@ -91,7 +91,7 @@
     <div class="main-content">
         <!-- Welcome Section -->
         <div class="welcome-section">
-            <h1 class="welcome-title">Welcome Back, {{ $reviewer->username }}</h1>
+            <h1 class="welcome-title-reviewer">Welcome Back, {{ $reviewer->username }}</h1>
             <p class="welcome-subtitle">Here's your comprehensive review activity overview</p>
         </div>
 
@@ -100,10 +100,9 @@
             <!-- Pending Reviews -->
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon pending">⏰</div>
+                    <div class="stat-label">Pending Reviews</div>
                     <span class="stat-badge urgent">Urgent</span>
                 </div>
-                <div class="stat-label">Pending Reviews</div>
                 <div class="stat-value">{{ $pendingReviews }}</div>
                 <div class="stat-progress">
                     <div class="stat-progress-bar" style="width: {{ min(($pendingReviews / 30) * 100, 100) }}%"></div>
@@ -114,10 +113,9 @@
             <!-- Approved Today -->
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon approved">✓</div>
+                    <div class="stat-label">Approved Today</div>
                     <span class="stat-badge trending">↗</span>
                 </div>
-                <div class="stat-label">Approved Today</div>
                 <div class="stat-value">{{ $approvedToday }}</div>
                 <div class="stat-footer">+{{ $approvedToday > 0 ? '15' : '0' }}% from yesterday</div>
             </div>
@@ -125,10 +123,9 @@
             <!-- Total Reviewed -->
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon total">📄</div>
+                    <div class="stat-label">Total Reviewed</div>
                     <span class="stat-badge info">📊</span>
                 </div>
-                <div class="stat-label">Total Reviewed</div>
                 <div class="stat-value">{{ $totalReviewed }}</div>
                 <div class="stat-footer">All-time contributions</div>
             </div>
@@ -136,10 +133,9 @@
             <!-- Accuracy Rate -->
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-icon accuracy">🎯</div>
+                    <div class="stat-label">Accuracy Rate</div>
                     <span class="stat-badge purple">🔒</span>
                 </div>
-                <div class="stat-label">Accuracy Rate</div>
                 <div class="stat-value">{{ $accuracyRate }}%</div>
                 <div class="stat-footer">
                     @if($accuracyRate >= 90)
@@ -184,8 +180,8 @@
                         </svg>
                     </div>
                     <div class="action-content">
-                        <div class="action-title">Start Reviewing</div>
-                        <div class="action-description">Jump into the review queue and help validate questions</div>
+                        <div class="action-title-primary">Start Reviewing</div>
+                        <div class="action-description-primary">Jump into the review queue and help validate questions</div>
                     </div>
                     <button class="action-btn" onclick="window.location.href='{{ route('reviewer.review') }}'">
                         Start Now
@@ -288,24 +284,18 @@
                     @forelse($recentActivities as $activity)
                         @php
                             $statusClass = 'approved';
-                            $icon = '✓';
                             $actionText = 'Approved';
                             
                             if($activity['status'] === 'Rejected') {
                                 $statusClass = 'rejected';
-                                $icon = '✗';
                                 $actionText = 'Rejected';
                             } elseif($activity['status'] === 'Generated') {
                                 $statusClass = 'approved';
-                                $icon = '❔';
                                 $actionText = 'Generated';
                             }
                         @endphp
                         
                         <div class="activity-item {{ $statusClass }}">
-                            <div class="activity-avatar {{ $statusClass }}">
-                                {{ $icon }}
-                            </div>
                             <div class="activity-content">
                                 <div class="activity-text">
                                     <strong>{{ $actionText }}:</strong> {{ Str::limit($activity['title'], 50) }}
@@ -344,8 +334,8 @@
                         if (!chartArea) return null;
                         
                         const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-                        gradient.addColorStop(0, '#FFB83D');
-                        gradient.addColorStop(1, '#FF6B35');
+                        gradient.addColorStop(0, '#7C3AED');
+                        gradient.addColorStop(1, '#A855F7');
                         return gradient;
                     },
                     borderRadius: 8,

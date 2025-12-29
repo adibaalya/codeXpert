@@ -16,9 +16,9 @@
     }
 
     .leaderboard-main-title {
-        font-size: 36px;
+        font-size: 42px;
         font-weight: 800;
-        background-image: linear-gradient(to right,rgb(250, 90, 75) 10%,rgb(250, 90, 75));
+        background-image: linear-gradient(135deg, rgb(235, 51, 73) 0%, rgb(244, 92, 67) 50%, rgb(235, 51, 73) 100%);
         -webkit-background-clip: text; 
         background-clip: text; 
         -webkit-text-fill-color: transparent; 
@@ -33,7 +33,7 @@
 
     /* User Rank Card */
     .user-rank-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
         padding: 32px;
         border-radius: 20px;
         margin-bottom: 32px;

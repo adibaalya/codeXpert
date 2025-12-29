@@ -142,4 +142,64 @@ class Learner extends Authenticatable
             'xp_for_next_level' => $nextLevelXp,
         ];
     }
+
+    /**
+     * Get current streak for a learner (consecutive days with attempts)
+     * 
+     * @return int Number of consecutive days
+     */
+    public function getCurrentStreak()
+    {
+        // Get all distinct dates when learner attempted questions
+        $activityDates = \Illuminate\Support\Facades\DB::table('attempts')
+            ->where('learner_ID', $this->learner_ID)
+            ->selectRaw('DATE(dateAttempted) as attempt_date')
+            ->distinct()
+            ->orderByDesc('attempt_date')
+            ->pluck('attempt_date')
+            ->toArray();
+
+        if (empty($activityDates)) {
+            return 0;
+        }
+
+        $today = \Carbon\Carbon::today();
+        $yesterday = \Carbon\Carbon::yesterday();
+        $latestActivityDate = \Carbon\Carbon::parse($activityDates[0]);
+        
+        // Determine if the streak is still active
+        // Streak is active if last activity was today OR yesterday
+        $isToday = $latestActivityDate->isSameDay($today);
+        $isYesterday = $latestActivityDate->isSameDay($yesterday);
+        
+        if (!$isToday && !$isYesterday) {
+            // Last activity was 2+ days ago - streak is broken
+            return 0;
+        }
+
+        // Start counting the streak
+        $streak = 0;
+        
+        // Determine starting point for counting
+        // If last activity was yesterday, we start from yesterday (streak still active for today)
+        // If last activity was today, we start from today
+        $expectedDate = $isYesterday ? $yesterday : $today;
+
+        // Count consecutive days backwards from the expected date
+        foreach ($activityDates as $dateString) {
+            $activityDate = \Carbon\Carbon::parse($dateString);
+            
+            // Check if this date matches our expected date
+            if ($activityDate->isSameDay($expectedDate)) {
+                $streak++;
+                // Move expected date one day back
+                $expectedDate = $expectedDate->copy()->subDay();
+            } else {
+                // Gap found - stop counting
+                break;
+            }
+        }
+
+        return $streak;
+    }
 }

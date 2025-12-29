@@ -19,7 +19,7 @@
         }
         
         body {
-            background-color:#FEF8F5;
+            background-color: #FFFCF9;
             font-family: 'Inter', sans-serif;
             color: white;
             min-height: 100vh;
@@ -57,7 +57,8 @@
         .logo-text {
             font-size: 25px; 
             font-weight: 800; 
-            background-image: linear-gradient(to right,rgb(250, 90, 75) 30%,rgb(251, 192, 90));
+            /* Deep Violet to Dark Slate Gradient */
+            background-image: linear-gradient(to right, rgb(106, 17, 203), rgb(252, 102, 37));
             -webkit-background-clip: text; 
             background-clip: text; 
             -webkit-text-fill-color: transparent; 
@@ -86,7 +87,7 @@
 
         /* Left Hero Section */
         .hero-section {
-            background-color: #FEF8F5;
+            background-color:#FFFCF9;
             padding: 0px 80px;
             display: flex;
             flex-direction: column;
@@ -104,12 +105,12 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background-color: rgba(255, 255, 255, 0.7);
-            border: 2px solid rgba(255, 111, 97, 0.2);
-            color: #FF6F61;
+            background-color: rgba(106, 17, 203, 0.05); /* Very light purple tint */
+            border: 1px solid rgba(106, 17, 203, 0.2);
+            color: rgb(106, 17, 203); /* Purple text for AI/Tech feel */
             padding: 8px 16px;
-            border-radius: 18px;
-            font-size: 16px;
+            border-radius: 20px;
+            font-size: 14px;
             font-weight: 600;
             margin-bottom: 24px;
             width: fit-content;
@@ -148,11 +149,13 @@
         }
 
         .feature-card:hover {
-            border:1px solid #FF6B35;
-            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.1);
-            transform: translateY(-2px);
-            transition: all 0.2s;
-            color: white;
+            /* Bridge Gradient Border Effect */
+            border-color: transparent;
+            background: linear-gradient(#fff, #fff) padding-box,
+                        linear-gradient(135deg, rgb(106, 17, 203), rgb(255, 75, 43)) border-box;
+            border: 1px solid transparent;
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
         }
 
         .feature-icon {
@@ -194,13 +197,14 @@
         .form-logo {
             width: 80px;
             height: 80px;
-            background: linear-gradient(135deg, #ff6b35, #f7931e);
-            border-radius: 20px;
+            /* Bridge Gradient */
+            background: linear-gradient(135deg, rgb(106, 17, 203) 0%, rgb(255, 75, 43) 100%);
+            border-radius: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0 auto 24px;
-            box-shadow: 0 4px 20px rgba(255, 107, 53, 0.3);
+            box-shadow: 0 10px 25px rgba(106, 17, 203, 0.2);
             overflow: hidden;
         }
 
@@ -226,11 +230,13 @@
         }
 
         .role-label {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
-            color: #1a1a1a;
-            margin-bottom: 12px;
+            color: #374151;
+            margin-bottom: 10px;
             display: block;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .role-buttons {
@@ -256,14 +262,24 @@
             gap: 8px;
         }
 
-        .role-btn:hover {
-            border-color: rgba(255, 111, 97, 0.5);
+        /* Active State: LEARNER (Orange) */
+        .role-btn.active[data-role="learner"] {
+            border-color: #FF6B35;
+            background-color: #FFF5F2; /* Very light orange */
+            color: #FF6B35;
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.15);
         }
 
-        .role-btn-active {
-            border-color: #FF6F61;
-            background: linear-gradient( to bottom, rgba(255, 111, 97, 0.1) 0%, rgba(255, 206, 123, 0.1) 100% );
-            color: #FF6F61;
+        /* Active State: REVIEWER (Purple) */
+        .role-btn.active[data-role="reviewer"] {
+            border-color: #7C3AED;
+            background-color: #F5F3FF; /* Very light purple */
+            color: #7C3AED;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+        }
+
+        .role-btn:hover {
+            border-color: rgba(255, 111, 97, 0.5);
         }
 
         .form-group {
@@ -291,8 +307,9 @@
 
         .form-input:focus {
             outline: none;
-            border-color: #FF6B35;
-            box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+            background: white;
+            border-color: #FF6B35; /* Default focus color is Orange (Action) */
+            box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.1);
         }
 
         .form-input::placeholder {
@@ -318,7 +335,7 @@
         .btn-primary {
             width: 100%;
             padding: 16px;
-            background: linear-gradient(to right, #FF4432, #FFB83D);
+            background: linear-gradient(to right, rgb(106, 17, 203), rgb(252, 102, 37));
             border: none;
             border-radius: 10px;
             color: white;
@@ -331,7 +348,7 @@
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+            box-shadow: 0 6px 20px rgba(255, 75, 43, 0.5);
         }
 
         .separator {

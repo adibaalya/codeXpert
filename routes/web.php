@@ -72,11 +72,15 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
     Route::get('/coding/random', [CodingQuestionController::class, 'random'])->name('learner.coding.random');
     Route::get('/coding/suggested', [CodingQuestionController::class, 'suggested'])->name('learner.coding.suggested');
     
+    // API endpoint to get starter code (LeetCode-style)
+    Route::get('/coding/question/{questionId}/starter-code', [CodingQuestionController::class, 'getStarterCode'])->name('learner.coding.starter');
+    
     // Code Execution Routes (for run and submit)
     Route::post('/coding/run', [\App\Http\Controllers\CodeExecutionController::class, 'runCode'])->name('learner.coding.run');
     Route::post('/coding/submit', [\App\Http\Controllers\CodeExecutionController::class, 'submitCode'])->name('learner.coding.submit');
     Route::post('/coding/rate', [\App\Http\Controllers\CodeExecutionController::class, 'rateQuestion'])->name('learner.coding.rate');
     Route::get('/coding/result', function() {
+        $learner = auth()->guard('learner')->user();
         $submission = session('coding_submission');
         
         if (!$submission) {
@@ -84,7 +88,7 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
         }
         
         // Use the same result view as competency test, but adapt it for learners
-        return view('learner.coding-result', compact('submission'));
+        return view('learner.coding-result', compact('submission', 'learner'));
     })->name('learner.coding.result');
     
     // Progress (placeholder routes - you'll need to implement these)
@@ -183,18 +187,23 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
         // Get proficiencies
         $proficiencies = \App\Models\UserProficiency::where('learner_ID', $learner->learner_ID)->get();
         
-        // Calculate statistics
-        $totalAttempts = \DB::table('attempts')->where('learner_ID', $learner->learner_ID)->count();
-        $successfulAttempts = \DB::table('attempts')
+        // Calculate statistics based on attempts
+        // 1. Challenges Completed = total number of attempts (every attempt counts)
+        $challengesCompleted = \DB::table('attempts')
             ->where('learner_ID', $learner->learner_ID)
-            ->where('accuracyScore', '>=', 70)
             ->count();
         
-        $challengesCompleted = $successfulAttempts;
-        $successRate = $totalAttempts > 0 ? round(($successfulAttempts / $totalAttempts) * 100) : 0;
+        // 2. Success Rate = (passed attempts / total attempts) * 100
+        // Consider an attempt "passed" if accuracyScore >= 5
+        $passedAttempts = \DB::table('attempts')
+            ->where('learner_ID', $learner->learner_ID)
+            ->where('accuracyScore', '>=', 5)
+            ->count();
+        
+        $successRate = $challengesCompleted > 0 ? round(($passedAttempts / $challengesCompleted) * 100) : 0;
         
         // Calculate total coding time (estimate: 15 minutes per attempt)
-        $totalMinutes = $totalAttempts * 15;
+        $totalMinutes = $challengesCompleted * 15;
         $hours = floor($totalMinutes / 60);
         $minutes = $totalMinutes % 60;
         $totalTimeCoding = "{$hours}h {$minutes}m";
@@ -213,7 +222,7 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
         $learner->totalTimeCoding = $totalTimeCoding;
         
         // Format proficiencies for display - XP-based progress
-        $learner->proficiencies = $proficiencies->map(function($prof) use ($learner) {
+        $proficiencies = $proficiencies->map(function($prof) use ($learner) {
             // XP thresholds for language proficiency levels
             $maxXP = 100; // Max XP to consider for progress bar (100%)
             
@@ -265,7 +274,10 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
             ];
         });
         
-        return view('learner.profile', compact('learner'));
+        // Also store on learner object for backward compatibility
+        $learner->proficiencies = $proficiencies;
+        
+        return view('learner.profile', compact('learner', 'proficiencies'));
     })->name('learner.profile');
     
     // Edit Profile
@@ -341,6 +353,53 @@ Route::middleware(['auth:reviewer'])->prefix('reviewer')->group(function () {
     
     // Profile
     Route::get('/profile', [ReviewerDashboardController::class, 'profile'])->name('reviewer.profile');
+    
+    // Edit Profile
+    Route::get('/profile/edit', function() {
+        $reviewer = auth()->guard('reviewer')->user();
+        return view('reviewer.edit-profile', compact('reviewer'));
+    })->name('reviewer.profile.edit');
+    
+    Route::put('/profile/update', function(Illuminate\Http\Request $request) {
+        $reviewer = auth()->guard('reviewer')->user();
+        
+        $request->validate([
+            'username' => 'required|string|max:50|unique:reviewers,username,' . $reviewer->reviewer_ID . ',reviewer_ID',
+            'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+        
+        try {
+            // Update username
+            $reviewer->username = $request->username;
+            
+            // Handle profile photo upload
+            if ($request->hasFile('profile_photo')) {
+                // Delete old photo if exists
+                if ($reviewer->profile_photo && \Storage::disk('public')->exists($reviewer->profile_photo)) {
+                    \Storage::disk('public')->delete($reviewer->profile_photo);
+                }
+                
+                // Store new photo
+                $path = $request->file('profile_photo')->store('profile_photos', 'public');
+                $reviewer->profile_photo = $path;
+            }
+            
+            // Handle photo removal
+            if ($request->remove_photo == '1' && $reviewer->profile_photo) {
+                if (\Storage::disk('public')->exists($reviewer->profile_photo)) {
+                    \Storage::disk('public')->delete($reviewer->profile_photo);
+                }
+                $reviewer->profile_photo = null;
+            }
+            
+            $reviewer->save();
+            
+            return redirect()->route('reviewer.profile')->with('success', 'Profile updated successfully!');
+            
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to update profile. Please try again.');
+        }
+    })->name('reviewer.profile.update');
     
     // Certificate Download
     Route::get('/certificate/download', [ReviewerDashboardController::class, 'downloadCertificate'])->name('reviewer.certificate.download');

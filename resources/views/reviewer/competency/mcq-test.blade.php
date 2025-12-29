@@ -13,115 +13,38 @@
     @include('layouts.competencyCSS')
 </head>
 <body class="mcq-test-body">
-    <!-- Header -->
-    <div class="header">
-        <div class="logo-container">
-            <img class="logo" src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
-            <span class="logo-text">CodeXpert</span>
-        </div>
+    <div class="test-header-wrapper" style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">
         
-        <div class="header-right">
-            <nav class="nav-menu">
-                <button class="nav-item" onclick="window.location.href='{{ route('reviewer.dashboard') }}'">Dashboard</button>
-                <button class="nav-item" onclick="window.location.href='{{ route('reviewer.review') }}'">Review</button>
-                <button class="nav-item" onclick="window.location.href='{{ route('reviewer.generate') }}'">Generate</button>
-                <button class="nav-item" onclick="window.location.href='{{ route('reviewer.history') }}'">History</button>
-                <button class="nav-item" onclick="window.location.href='{{ route('reviewer.profile') }}'">Profile</button>
-            </nav>
+        <div class="test-header-left">
+            <div class="test-title">
+                {{ session('test_language') }} Competency Test
+            </div>
+            <div class="test-subtitle" style="color: #666; font-size: 14px; margin-top: 4px;">
+                Part 1: Multiple Choice Questions
+            </div>
+        </div>
 
-            <div class="user-section">
-                <div class="user-info">
-                    <div class="user-name">{{ Auth::guard('reviewer')->user()->username }}</div>
-                    <div class="user-role">Reviewer</div>
-                </div>
-                <div class="user-avatar" onclick="toggleUserMenu(event)">
-                    {{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 0, 1)) }}{{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 1, 1) ?? '') }}
-                </div>
+        <div class="timer-card" >
+            <div class="timer-label">
+                Time Remaining
+            </div>
+            
+            <div class="timer-value-wrapper" style="display: flex; align-items: center; gap: 8px;">
+                <svg width="20" height="20" fill="none" stroke="rgb(92, 33, 195)" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 
-                <!-- User Dropdown Menu -->
-                <div class="user-dropdown" id="userDropdown">
-                    <div class="user-dropdown-header">
-                        <div class="user-dropdown-avatar">
-                            {{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 0, 2)) }}
-                        </div>
-                        <div>
-                            <div class="user-dropdown-name">{{ Auth::guard('reviewer')->user()->username }}</div>
-                            <div class="user-dropdown-email">{{ Auth::guard('reviewer')->user()->email }}</div>
-                        </div>
-                    </div>
-                    
-                    @php
-                        $competencyResult = \App\Models\CompetencyTestResult::where('reviewer_ID', Auth::guard('reviewer')->user()->reviewer_ID)
-                            ->where('passed', true)
-                            ->latest()
-                            ->first();
-                    @endphp
-                    
-                    @if($competencyResult)
-                    <div class="verified-badge-dropdown">
-                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                        </svg>
-                        <span>Verified Reviewer</span>
-                    </div>
-                    @endif
-                    
-                    <a href="{{ route('reviewer.competency.choose') }}" class="user-dropdown-item">
-                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                        </svg>
-                        <span>Take Competency Test</span>
-                    </a>
-                    
-                    <div class="user-dropdown-divider"></div>
-                    
-                    <form method="POST" action="{{ route('reviewer.logout') }}" style="margin: 0;">
-                        @csrf
-                        <button type="submit" class="user-dropdown-item logout">
-                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                            </svg>
-                            <span>Logout</span>
-                        </button>
-                    </form>
+                <div class="timer-display" id="timer" style="font-size: 20px; font-weight: 700; color: #111827; font-feature-settings: 'tnum';">
+                    45:00
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="test-header-wrapper">
-        <div class="test-header">
-            <div class="test-title">{{ session('test_language') }} Competency Test</div>
-            <div class="test-subtitle">Verify your programming expertise</div>
-            <span class="question-header-badge">PART 1: Multiple Choice</span>
-        </div>
     </div>
 
     <div class="test-container">
         <!-- Sidebar -->
         <div class="sidebar">
-            <div class="sidebar-card">
-                <div class="timer-section">
-                    <div class="timer-icon">
-                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
-                        </svg>
-                        Time Remaining
-                    </div>
-                    <div class="timer-display" id="timer">45:00</div>
-                </div>
-
-                <div class="progress-section">
-                    <div class="progress-header">
-                        <span class="progress-title">Progress</span>
-                        <span class="progress-percentage">{{ round((($currentQuestion ?? 1) / ($totalQuestions ?? 10)) * 100) }}%</span>
-                    </div>
-                    <div class="progress-bar-track">
-                        <div class="progress-bar-fill" style="width: {{ (($currentQuestion ?? 1) / ($totalQuestions ?? 10)) * 100 }}%"></div>
-                    </div>
-                    <div class="question-counter">Question {{ $currentQuestion ?? 1 }} of {{ $totalQuestions ?? 10 }}</div>
-                </div>
-            </div>
 
             <div class="sidebar-card">
                 <div class="progress-title" style="margin-bottom: 15px;">QUESTIONS</div>

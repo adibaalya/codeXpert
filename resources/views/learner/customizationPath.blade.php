@@ -18,13 +18,13 @@
     <!-- Header -->
     <div class="header">
         <div class="logo-container">
-            <img class="logo" src="{{ asset('assets/images/codeXpert_logo.jpg') }}" alt="CodeXpert Logo">
+            <img class="logo" src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
             <span class="logo-text">CodeXpert</span>
         </div>
         
         <div class="header-right">
             <nav class="nav-menu">
-                <button class="nav-item active" onclick="window.location.href='{{ route('learner.dashboard') }}'">Dashboard</button>
+                <button class="nav-item" onclick="window.location.href='{{ route('learner.dashboard') }}'">Dashboard</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('learner.practice') }}'">Practice</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('learner.leaderboard') }}'">Leaderboard</button>
                 <button class="nav-item" onclick="window.location.href='{{ route('learner.hackathon') }}'">Hackathon</button>
@@ -117,9 +117,6 @@
         @else
             <!-- Section Title with Icon -->
             <div class="section-title">
-                <svg class="section-title-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                </svg>
                 <span>Your Languages</span>
             </div>
 
@@ -127,7 +124,7 @@
             <div class="languages-grid">
                 @foreach($addedLanguages as $proficiency)
                     <div class="language-card" data-language="{{ $proficiency->language }}">
-                        <div class="language-icon {{ $availableLanguages[$proficiency->language] ?? 'blue' }}">
+                        <div class="language-icon" style="background: linear-gradient(135deg, {{ $availableLanguages[$proficiency->language] ?? '#6B7280' }}, {{ $availableLanguages[$proficiency->language] ?? '#6B7280' }});">
                             &lt;/&gt;
                         </div>
                         <div class="language-info">
@@ -166,8 +163,6 @@
         @endif
     </div>
 
-    <button class="help-btn">?</button>
-
     <!-- Modal -->
     <div class="modal fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center transition-opacity duration-300 opacity-0 pointer-events-none z-50" id="languageModal">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 transform transition-transform duration-300 scale-95">
@@ -184,7 +179,7 @@
                 <div class="language-grid grid grid-cols-3 gap-4">
                     @foreach($availableLanguages as $language => $color)
                         <div class="language-option p-4 border rounded-lg text-center cursor-pointer hover:border-indigo-500 transition duration-200" data-language="{{ $language }}" onclick="selectLanguage('{{ $language }}')">
-                            <div class="language-icon {{ $color }} w-12 h-12 flex items-center justify-center rounded-full text-2xl font-mono mx-auto mb-2">
+                            <div class="language-icon" style="background: linear-gradient(135deg, {{ $color }}, {{ $color }});" class="w-12 h-12 flex items-center justify-center rounded-full text-2xl font-mono mx-auto mb-2">
                                 &lt;/&gt;
                             </div>
                             <div class="text-sm font-medium">{{ $language }}</div>
@@ -210,7 +205,12 @@
 
             <div class="modal-actions flex justify-end space-x-3 pt-4 border-t">
                 <button class="btn btn-cancel px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50" id="addLanguageBtn" onclick="addLanguage()" disabled>
+                <button 
+                    class="btn btn-primary px-4 py-2 text-white rounded-lg transition disabled:opacity-50" 
+                    id="addLanguageBtn" 
+                    onclick="addLanguage()" 
+                    disabled
+                    style="background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%); border: none;">
                     Add Language
                 </button>
             </div>
@@ -404,6 +404,23 @@
             });
         });
         @endverbatim
+
+        // Toggle User Dropdown Menu
+        function toggleUserMenu(event) {
+            event.stopPropagation();
+            const userDropdown = document.getElementById('userDropdown');
+            userDropdown.classList.toggle('show');
+        }
+
+        // Close User Dropdown Menu when clicking outside
+        window.onclick = function(event) {
+            const userDropdown = document.getElementById('userDropdown');
+            if (!event.target.matches('.user-avatar')) {
+                if (userDropdown.classList.contains('show')) {
+                    userDropdown.classList.remove('show');
+                }
+            }
+        }
     </script>
 </body>
 </html>
