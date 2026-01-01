@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hackathon Hub - CodeXpert</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    @include('layouts.dashboardCSS')
+    <script src="{{ asset('js/navBar.js') }}"></script>
+    <script src="{{ asset('js/learner/hackathon.js') }}"></script>
     @include('layouts.navCSS')
-    @include('layouts.hackathonCSS')
+    @include('layouts.learner.hackathonCSS')
 </head>
 <body>
     <!-- Header (Same as Dashboard) -->
@@ -275,48 +276,5 @@
             </div>
         </div>
     </div>
-
-    <script>
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
-
-        // Filter Hackathons
-        function filterHackathons(category) {
-            // Update active tab
-            document.querySelectorAll('.filter-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            event.target.classList.add('active');
-
-            // Filter cards
-            const cards = document.querySelectorAll('.hackathon-card');
-            cards.forEach(card => {
-                if (category === 'all') {
-                    card.style.display = 'block';
-                } else {
-                    const cardCategory = card.getAttribute('data-category');
-                    if (cardCategory.includes(category)) {
-                        card.style.display = 'block';
-                    } else {
-                        card.style.display = 'none';
-                    }
-                }
-            });
-        }
-    </script>
 </body>
 </html>

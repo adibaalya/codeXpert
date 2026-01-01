@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Choose Your Exercise - CodeXpert</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    @include('layouts.practiceCSS')
+    <script src="{{ asset('js/navBar.js') }}"></script>
+    @include('layouts.learner.practiceCSS')
     @include('layouts.navCSS')
 </head>
 <body>
@@ -120,7 +121,7 @@
                         $iconInfo = $languageIcons[$language] ?? ['icon' => '</>', 'bg' => '#4C6EF5', 'light' => '#E3F2FD'];
                     @endphp
                     
-                    <div class="language-option" data-language="{{ $language }}" onclick="selectLanguage(this)">
+                    <div class="language-option" data-language="{{ $language }}">
                         <div class="language-icon" style="background-color: {{ $iconInfo['bg'] }}; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px;">
                             {{ $iconInfo['icon'] }}
                         </div>
@@ -143,7 +144,7 @@
                 </div>
             </div>
             <div class="difficulty-grid">
-                <div class="difficulty-option" data-difficulty="Beginner" onclick="selectDifficulty(this)">
+            <div class="difficulty-option" data-difficulty="Beginner">
                     <div class="difficulty-header">
                         <div>
                             <div class="difficulty-title">Beginner</div>
@@ -152,7 +153,7 @@
                     </div>
                 </div>
                 
-                <div class="difficulty-option" data-difficulty="Intermediate" onclick="selectDifficulty(this)">
+                <div class="difficulty-option" data-difficulty="Intermediate">
                     <div class="difficulty-header">
                         <div>
                             <div class="difficulty-title">Intermediate</div>
@@ -161,7 +162,7 @@
                     </div>
                 </div>
                 
-                <div class="difficulty-option" data-difficulty="Advanced" onclick="selectDifficulty(this)">
+                <div class="difficulty-option" data-difficulty="Advanced">
                     <div class="difficulty-header">
                         <div>
                             <div class="difficulty-title">Advanced</div>
@@ -204,7 +205,7 @@
                     </div>
                 </div>
             </div>
-            <button class="start-button" id="startButton" onclick="startPractice()" disabled>
+            <button class="start-button" id="startButton" disabled>
                 <span>Start Practice</span>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -214,148 +215,14 @@
     </div>
 
     <script>
-        let selectedLanguage = null;
-        let selectedDifficulty = null;
-        let selectedSkill = null;
-
-        function selectLanguage(element) {
-            // Remove previous selection
-            document.querySelectorAll('.language-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            
-            // Add selection to clicked element
-            element.classList.add('selected');
-            selectedLanguage = element.getAttribute('data-language');
-            document.getElementById('selectedLanguage').textContent = selectedLanguage;
-            
-            // Load topics if both language and difficulty are selected
-            if (selectedLanguage && selectedDifficulty) {
-                loadTopics();
+        window.practiceConfig = {
+            routes: {
+                topics: "{{ route('learner.practice.topics') }}", // Ensure this named route exists
+                start: "{{ route('learner.coding.random') }}"     // Ensure this named route exists
             }
-            
-            checkAllSelected();
-        }
-
-        function selectDifficulty(element) {
-            // Remove previous selection
-            document.querySelectorAll('.difficulty-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            
-            // Add selection to clicked element
-            element.classList.add('selected');
-            selectedDifficulty = element.getAttribute('data-difficulty');
-            document.getElementById('selectedDifficulty').textContent = selectedDifficulty;
-            
-            // Load topics if both language and difficulty are selected
-            if (selectedLanguage && selectedDifficulty) {
-                loadTopics();
-            }
-            
-            checkAllSelected();
-        }
-
-        function selectSkill(element) {
-            // Remove previous selection
-            document.querySelectorAll('.skill-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            
-            // Add selection to clicked element
-            element.classList.add('selected');
-            selectedSkill = element.getAttribute('data-skill');
-            document.getElementById('selectedSkill').textContent = selectedSkill;
-            
-            checkAllSelected();
-        }
-
-        async function loadTopics() {
-            const topicsCard = document.getElementById('topicsCard');
-            const topicsGrid = document.getElementById('topicsGrid');
-            const topicsLoading = document.getElementById('topicsLoading');
-            const topicsEmpty = document.getElementById('topicsEmpty');
-            
-            // Show topics card
-            topicsCard.style.display = 'block';
-            
-            // Show loading state
-            topicsGrid.innerHTML = '';
-            topicsLoading.style.display = 'block';
-            topicsEmpty.style.display = 'none';
-            
-            // Reset selected skill
-            selectedSkill = null;
-            document.getElementById('selectedSkill').textContent = '-';
-            
-            try {
-                // Fetch topics from server
-                const response = await fetch(`/learner/practice/topics?language=${encodeURIComponent(selectedLanguage)}&level=${encodeURIComponent(selectedDifficulty)}`);
-                const data = await response.json();
-                
-                // Hide loading
-                topicsLoading.style.display = 'none';
-                
-                if (data.topics && data.topics.length > 0) {
-                    // Display topics
-                    topicsGrid.innerHTML = data.topics.map(topic => 
-                        `<div class="skill-option" data-skill="${topic}" onclick="selectSkill(this)">${topic}</div>`
-                    ).join('');
-                    topicsEmpty.style.display = 'none';
-                } else {
-                    // No topics available
-                    topicsEmpty.style.display = 'block';
-                }
-            } catch (error) {
-                console.error('Error loading topics:', error);
-                topicsLoading.style.display = 'none';
-                topicsEmpty.style.display = 'block';
-            }
-            
-            checkAllSelected();
-        }
-
-        function checkAllSelected() {
-            const startButton = document.getElementById('startButton');
-            // Only require language and difficulty, topic is optional
-            if (selectedLanguage && selectedDifficulty) {
-                startButton.disabled = false;
-            } else {
-                startButton.disabled = true;
-            }
-        }
-
-        function startPractice() {
-            if (selectedLanguage && selectedDifficulty) {
-                // Build URL with optional topic parameter
-                let url = `/learner/coding/random?language=${encodeURIComponent(selectedLanguage)}&level=${encodeURIComponent(selectedDifficulty)}`;
-                
-                // Add topic if selected
-                if (selectedSkill) {
-                    url += `&topic=${encodeURIComponent(selectedSkill)}`;
-                }
-                
-                // Redirect to random coding question
-                window.location.href = url;
-            }
-        }
-
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
+        };
     </script>
+
+    <script src="{{ asset('js/learner/personalize-practice.js') }}"></script>
 </body>
 </html>

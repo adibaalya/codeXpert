@@ -187,14 +187,27 @@ class GenerateMonthlyCompetencyQuestions extends Command
 
     private function buildMCQPrompt($language, $difficulty, $topic)
     {
-        $lengthInstruction = $difficulty === 'beginner' 
-            ? "The question must be a single, direct sentence." 
-            : "The question must be maximum 2 sentences.";
+        // Customizing focus based on language to make it authentic
+        $focusArea = "Best Practices, Architecture, and Language Internals";
+        if (in_array($language, ['C', 'C++'])) {
+            $focusArea = "Memory Management, Pointers, and Compilation";
+        } elseif ($language === 'JavaScript') {
+            $focusArea = "Asynchronous operations, Scopes, and Event Loop";
+        } elseif ($language === 'PHP') {
+            $focusArea = "Security (XSS/CSRF/SQLi), Request Lifecycle, and Type Juggling";
+        } elseif ($language === 'Java') {
+            $focusArea = "JVM, Multithreading, and OOP Principles";
+        }
 
-        return "Generate a focused MCQ question for {$language} ({$difficulty}) on {$topic}.\n" .
-               "- {$lengthInstruction} Avoid scenarios.\n" .
+        return "Act as a Senior Software Engineer. Generate a theoretical MCQ to test a Code Reviewer's expert knowledge in {$language}.\n" .
+               "Context: A reviewer needs to know WHY code works, not just how to write it.\n" .
+               "Topic: {$topic}\n" .
+               "Difficulty: {$difficulty}\n" .
+               "Focus On: {$focusArea}.\n" .
+               "- The question MUST be conceptual (e.g., 'What is the risk of...?', 'Which design pattern...?').\n" .
+               "- Avoid simple syntax questions like 'How to declare a variable?'.\n" .
                "- Output format:\n" .
-               "QUESTION:\n[Question]\n\n" .
+               "QUESTION:\n[A challenging conceptual question]\n\n" .
                "CHOICES:\nA) [Choice]\nB) [Choice]\nC) [Choice]\nD) [Choice]\n\n" .
                "CORRECT_ANSWER:\n[A, B, C, or D]\n";
     }
@@ -204,32 +217,53 @@ class GenerateMonthlyCompetencyQuestions extends Command
      */
     private function buildCodeSolutionPrompt($language, $difficulty, $topic)
     {
-        return "Generate a {$difficulty} coding problem for {$language} on {$topic}.\n" .
-               "STRICT REQUIREMENT: The problem MUST ask the user to implement a specific function name.\n" .
-               "Example: 'Implement the `calculateSum(arr)` function...'\n" .
-               "STRICT JSON REQUIREMENT: Provide test cases in a strict JSON array format.\n" .
-               "Output format:\n" .
-               "TITLE:\n[Title]\n\n" .
-               "FUNCTION_NAME:\n[The exact name of the function, e.g. twoSum]\n\n" .
-               "PROBLEM_STATEMENT:\n[Start with 'Implement the `functionName` function which...']\n\n" .
-               "CONSTRAINTS:\n- [Constraint]\n\n" .
-               "HINTS:\n[Brief hint on approach]\n\n" . // Added Hint
+        return "Act as a Technical Lead. Generate a 'Code Debugging Challenge' for {$language} ({$difficulty}) on {$topic}.\n" .
+               "SCENARIO: A junior developer has submitted a function that runs but produces incorrect results (Logic Bug).\n" .
+               "YOUR GOAL: Provide the buggy code and ask the reviewer to fix it.\n" .
+               "1. The 'PROBLEM_STATEMENT' must clearly state what the function IS SUPPOSED to do, and show the BUGGY code block.\n" .
+               "2. The 'SOLUTION' must be the corrected version of that function.\n" .
+               "3. 'TEST_CASES_JSON' must contain inputs and expected outputs for the CORRECTED version.\n\n" .
+               
+               "STRICT REQUIREMENTS:\n" .
+               "- The bug should be logical (e.g., < instead of <=, missing return, wrong variable usage), NOT just a missing semicolon.\n" .
+               "- **MUST PROVIDE AT LEAST 3 DISTINCT TEST CASES** (including one edge case).\n\n" .
+
+               "IMPORTANT FORMATTING:\n" .
+               "1. Use proper indentation (4 spaces) for all code blocks.\n" .
+               "2. Always use triple backticks with the language identifier (e.g. ```{$language}).\n\n" .
+               
+               "- Output format:\n" .
+               "TITLE:\nDebug: [Function Name]\n\n" .
+               "FUNCTION_NAME:\n[functionName]\n\n" .
+               "PROBLEM_STATEMENT:\nThe following function is intended to [Goal], but it fails for edge cases. Identify and fix the logic bug.\n\n```{$language}\n[Insert Properly Indented Buggy Code]\n```\n\n" .
+               "CONSTRAINTS:\n- Keep the function signature unchanged.\n- Fix the logic error.\n\n" .
+               "HINTS:\n[Hint regarding the specific logic error]\n\n" .
                "TEST_CASES_JSON:\n" .
                "[\n" .
-               "  { \"input\": { \"arr\": [1,2], \"k\": 1 }, \"output\": 3 },\n" .
-               "  { \"input\": { \"arr\": [5], \"k\": 0 }, \"output\": 5 }\n" .
+               "  { \"input\": { \"arg1\": ... }, \"output\": ... },\n" .
+               "  { \"input\": { \"arg1\": ... }, \"output\": ... },\n" .
+               "  { \"input\": { \"arg1\": ... }, \"output\": ... }\n" .
                "]\n\n" .
-               "SOLUTION:\n[Clean solution code in {$language}]\n"; // Added Solution
+               "SOLUTION:\n```{$language}\n[The Fully Corrected Code with Proper Indentation]\n```\n";
     }
     
     private function buildQuestionEvaluationPrompt($language, $difficulty, $topic)
     {
-        return "Generate a code review MCQ for {$language} ({$difficulty}) on {$topic}.\n" .
-               "Create a flawed code snippet and ask what is wrong.\n" .
-               "Output format:\n" .
-               "QUESTION_UNDER_REVIEW:\n[Code Snippet]\n\n" .
-               "EVALUATION_PROMPT:\n[Question like 'What is the bug?']\n\n" .
-               "CHOICES:\nA) [Choice]\nB) [Choice]\nC) [Choice]\nD) [Choice]\n\n" .
+        return "Act as a Technical Lead. Generate a 'Code Review' MCQ for {$language} on {$topic}.\n" .
+               "Task: Create a code snippet that LOOKS correct but contains a HIDDEN DEFECT.\n" .
+               "The defect should be one of: Security Vulnerability, Logic Error (Off-by-one), Memory Leak, or Performance Issue.\n" .
+               "Constraint: The code snippet must be 3-8 lines long.\n\n" .
+               
+               // FORMATTING INSTRUCTIONS
+               "IMPORTANT FORMATTING:\n" .
+               "1. The code snippet MUST use proper indentation (4 spaces or tabs).\n" .
+               "2. Wrap the code snippet in triple backticks with the language identifier (e.g. ```{$language} ... ```).\n" .
+               "3. Ensure the code structure is clean and readable.\n\n" .
+               
+               "- Output format:\n" .
+               "QUESTION_UNDER_REVIEW:\n```{$language}\n[Properly indented code snippet with hidden bug]\n```\n\n" .
+               "EVALUATION_PROMPT:\n[Question: What is the primary reason to reject this code?]\n\n" .
+               "CHOICES:\nA) [Plausible but incorrect reason]\nB) [Plausible but incorrect reason]\nC) [The Actual Defect]\nD) [Plausible but incorrect reason]\n\n" .
                "CORRECT_ANSWER:\n[A, B, C, or D]\n";
     }
     
@@ -264,9 +298,9 @@ class GenerateMonthlyCompetencyQuestions extends Command
             'description' => '',
             'problemStatement' => '',
             'constraints' => [],
-            'hint' => '', // Changed from hints to hint for consistency with DB
+            'hint' => '',
             'tests' => [],
-            'solution' => '' // Added solution
+            'solution' => ''
         ];
 
         if (preg_match('/TITLE:\s*(.+?)(\r\n|\n|$)/', $text, $matches)) 
@@ -293,26 +327,65 @@ class GenerateMonthlyCompetencyQuestions extends Command
             $question['hint'] = trim($matches[1]);
         }
 
-        // Parse JSON
+        // IMPROVED: More flexible JSON parsing with better error handling
         $jsonString = '';
-        if (preg_match('/TEST_CASES_JSON[:\s]*(\[.+\])/s', $text, $matches)) {
+        
+        // Method 1: Look for TEST_CASES_JSON followed by JSON array
+        if (preg_match('/TEST_CASES_JSON[:\s]*\n*\s*(\[\s*\{.+?\}\s*\])/s', $text, $matches)) {
             $jsonString = $matches[1];
-        } elseif (preg_match('/(\[\s*\{\s*"input".+\])/s', $text, $matches)) {
-            $jsonString = $matches[1];
+            \Log::info('JSON Method 1 matched', ['json' => substr($jsonString, 0, 200)]);
         }
-
-        if (!empty($jsonString)) {
-            $jsonString = preg_replace('/^```json\s*/i', '', trim($jsonString));
-            $jsonString = preg_replace('/```\s*$/', '', $jsonString);
-            $decoded = json_decode($jsonString, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                $question['tests'] = $decoded;
+        // Method 2: Look for any JSON array with "input" and "output" keys
+        elseif (preg_match('/(\[\s*\{\s*["\']input["\'].+?\}\s*\])/s', $text, $matches)) {
+            $jsonString = $matches[1];
+            \Log::info('JSON Method 2 matched', ['json' => substr($jsonString, 0, 200)]);
+        }
+        // Method 3: Extract everything between TEST_CASES_JSON and SOLUTION/end
+        elseif (preg_match('/TEST_CASES_JSON[:\s]*\n*(.+?)(?=SOLUTION|$)/s', $text, $matches)) {
+            $extracted = trim($matches[1]);
+            // Remove markdown code blocks if present
+            $extracted = preg_replace('/```json\s*/i', '', $extracted);
+            $extracted = preg_replace('/```\s*$/s', '', $extracted);
+            // Try to find the array in the extracted text
+            if (preg_match('/(\[\s*\{.+?\}\s*\])/s', $extracted, $arrayMatch)) {
+                $jsonString = $arrayMatch[1];
+                \Log::info('JSON Method 3 matched', ['json' => substr($jsonString, 0, 200)]);
             }
         }
 
-        // Parse Solution Code
-        if (preg_match('/SOLUTION[:\s]*\s*(?:```[\w]*\s*)?(.+?)(?:```|$)/s', $text, $matches)) {
+        if (!empty($jsonString)) {
+            // Clean up the JSON string
+            $jsonString = preg_replace('/^```json\s*/i', '', trim($jsonString));
+            $jsonString = preg_replace('/```\s*$/s', '', $jsonString);
+            $jsonString = trim($jsonString);
+            
+            \Log::info('Attempting to decode JSON', ['json_preview' => substr($jsonString, 0, 300)]);
+            
+            $decoded = json_decode($jsonString, true);
+            
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
+                $question['tests'] = $decoded;
+                \Log::info('JSON decoded successfully', ['test_count' => count($decoded)]);
+            } else {
+                \Log::error('JSON decode failed', [
+                    'error' => json_last_error_msg(),
+                    'json_preview' => substr($jsonString, 0, 500)
+                ]);
+            }
+        } else {
+            \Log::warning('No JSON string found in response', ['text_preview' => substr($text, 0, 1000)]);
+        }
+
+        // Parse Solution Code - more flexible pattern
+        if (preg_match('/SOLUTION[:\s]*\n*\s*```[\w]*\n(.+?)```/s', $text, $matches)) {
             $question['solution'] = trim($matches[1]);
+        } elseif (preg_match('/SOLUTION[:\s]*\n*\s*(.+?)(?=$)/s', $text, $matches)) {
+            // Fallback: grab everything after SOLUTION to end of text
+            $solution = trim($matches[1]);
+            // Remove any leading markdown code blocks
+            $solution = preg_replace('/^```[\w]*\s*/i', '', $solution);
+            $solution = preg_replace('/```\s*$/s', '', $solution);
+            $question['solution'] = trim($solution);
         }
 
         return $question;

@@ -7,23 +7,34 @@
 
     <title>CodeXpert - Register</title>
 
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
     @include('layouts.app')
     
+    <style>
+        /* Only added style for the error message */
+        .error-text {
+            color: #ef4444;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none; /* Hidden by default */
+        }
+    </style>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const roleButtons = document.querySelectorAll('.role-btn');
             const roleInput = document.getElementById('role');
             const socialButtons = document.querySelectorAll('.btn-social');
+            const registerForm = document.getElementById('register-form'); // Get form
+            const roleError = document.getElementById('role-error'); // Get error message
             
             roleButtons.forEach(button => {
                 button.addEventListener('click', function() {
-                    // 1. Remove 'active' from all buttons
+                    // 1. Remove 'active' from all buttons (Reverted to 'active')
                     roleButtons.forEach(btn => btn.classList.remove('active'));
                     
-                    // 2. Add 'active' to clicked button
+                    // 2. Add 'active' to clicked button (Reverted to 'active')
                     this.classList.add('active');
                     
                     // 3. Update hidden input
@@ -31,22 +42,106 @@
                     if (roleInput) {
                         roleInput.value = role;
                     }
+
+                    // Hide error if user selects a role (New addition)
+                    if(roleError) {
+                        roleError.style.display = 'none';
+                    }
                     
                     // 4. Update social URL params
                     updateSocialButtonUrls(role);
                 });
             });
+
+            // Form Submit Validation (New addition)
+            if(registerForm) {
+                registerForm.addEventListener('submit', function(e) {
+                    if (!roleInput.value) {
+                        e.preventDefault(); // Stop submission
+                        if(roleError) {
+                            roleError.style.display = 'block'; // Show error
+                        }
+                    }
+                });
+            }
             
             function updateSocialButtonUrls(role) {
                 socialButtons.forEach(button => {
                     const currentUrl = button.getAttribute('href');
                     const url = new URL(currentUrl, window.location.origin);
-                    url.searchParams.set('role', role);
+                    // Only set role if it exists
+                    if(role) {
+                        url.searchParams.set('role', role);
+                    }
                     button.setAttribute('href', url.toString());
                 });
             }
             
+            // Initial call
             updateSocialButtonUrls('learner');
+
+            // Password Strength Validator (UNCHANGED)
+            const passwordInput = document.getElementById('password');
+            const strengthBar = document.getElementById('strength-bar');
+            const strengthText = document.getElementById('strength-text');
+            const reqLength = document.getElementById('req-length');
+            const reqMix = document.getElementById('req-mix');
+
+            if(passwordInput) {
+                passwordInput.addEventListener('input', function() {
+                    const value = passwordInput.value;
+                    let strength = 0;
+
+                    if (value.length >= 8) {
+                        strength += 1;
+                        reqLength.classList.remove('invalid');
+                        reqLength.classList.add('valid');
+                    } else {
+                        reqLength.classList.remove('valid');
+                        reqLength.classList.add('invalid');
+                    }
+
+                    const hasUpper = /[A-Z]/.test(value);
+                    const hasLower = /[a-z]/.test(value);
+                    const hasNum = /[0-9]/.test(value);
+                    const hasSym = /[^A-Za-z0-9]/.test(value);
+
+                    const typeCount = hasUpper + hasLower + hasNum + hasSym;
+                    
+                    if (typeCount >= 3) {
+                        strength += 1;
+                        reqMix.classList.remove('invalid');
+                        reqMix.classList.add('valid');
+                    } else {
+                        reqMix.classList.remove('valid');
+                        reqMix.classList.add('invalid');
+                    }
+                    
+                    if (typeCount === 4 && value.length >= 8) {
+                        strength += 1;
+                    }
+
+                    if (value.length === 0) {
+                        strengthBar.style.width = '0%';
+                        strengthText.innerText = '';
+                    } else if (strength < 2) {
+                        strengthBar.style.width = '30%';
+                        strengthBar.style.backgroundColor = '#EF4444'; 
+                        strengthText.style.color = '#EF4444';
+                        strengthText.innerText = 'Weak - Too short or simple';
+                    } else if (strength === 2) {
+                        strengthBar.style.width = '60%';
+                        strengthBar.style.backgroundColor = '#F59E0B'; 
+                        strengthText.style.color = '#F59E0B';
+                        strengthText.innerText = 'Medium - Good start';
+                    } else {
+                        strengthBar.style.width = '100%';
+                        strengthBar.style.backgroundColor = '#10B981'; 
+                        strengthText.style.color = '#10B981';
+                        strengthText.innerText = 'Strong - Great job!';
+                    }
+                });
+            }
         });
     </script>
 </head>
@@ -60,10 +155,8 @@
         </div>
     </div>
     <div class="main-container">
-        <!-- Left Hero Section -->
         <div class="hero-section">
             <div>
-
                 <div class="hero-content">
                     <div class="ai-badge">AI-Powered Learning Platform</div>
                     
@@ -95,7 +188,6 @@
             </div>
         </div>
 
-        <!-- Right Form Section -->
         <div class="form-section">
             <div class="form-container">
                 <div class="form-logo">
@@ -105,19 +197,23 @@
                 <h1 class="welcome-title">Join CodeXpert</h1>
                 <p class="welcome-subtitle">Start your journey from practice to pro</p>
 
-                <form method="POST" action="{{ route('register') }}">
+                <form method="POST" action="{{ route('register') }}" id="register-form">
                     @csrf
                     
-                    <input type="hidden" name="role" id="role" value="learner">
+                    <input type="hidden" name="role" id="role" value="">
                     
                     <label class="role-label">Select Your Role</label>
                     <div class="role-buttons">
-                        <button type="button" class="role-btn role-btn-active" data-role="learner">
+                        <button type="button" class="role-btn" data-role="learner">
                             Learner
                         </button>
                         <button type="button" class="role-btn" data-role="reviewer">
                             Reviewer
                         </button>
+                    </div>
+
+                    <div id="role-error" class="error-text">
+                        Please select a role (Learner or Reviewer) to continue.
                     </div>
 
                     <div class="form-group">
@@ -138,10 +234,21 @@
                         @enderror
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group password-container">
                         <input id="password" name="password" type="password" autocomplete="new-password" required 
                                class="form-input" 
                                placeholder="Password">
+                        
+                        <div class="strength-meter">
+                            <div id="strength-bar"></div>
+                        </div>
+                        <p id="strength-text"></p>
+
+                        <ul class="requirements-list">
+                            <li id="req-length" class="invalid">At least 8 characters</li>
+                            <li id="req-mix" class="invalid">Mix of Upper, Lower, Number & Symbol</li>
+                        </ul>
+
                         @error('password')
                             <p class="error-message">{{ $message }}</p>
                         @enderror

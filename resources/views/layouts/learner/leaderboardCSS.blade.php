@@ -1,4 +1,15 @@
 <style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: 'Inter', sans-serif;
+        background: #FFF9F9;
+        min-height: 100vh;
+    }
     /* Leaderboard Page Styles */
     .leaderboard-container {
         max-width: 1400px;
@@ -75,6 +86,12 @@
         justify-content: center;
         flex-shrink: 0;
         border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .user-rank-icon img {
+        width: 64pxpx;
+        height: 64px;
+        border-radius: 16px;
     }
 
     .user-rank-icon svg {
@@ -177,7 +194,7 @@
         text-align: right;
     }
 
-    /* Leaderboard Row */
+    /* Leaderboard Row (Base Style) */
     .leaderboard-row {
         display: grid;
         grid-template-columns: 80px 1fr 150px 150px;
@@ -187,32 +204,38 @@
         margin-bottom: 8px;
         border-radius: 16px;
         transition: all 0.3s ease;
-        background: #F9FAFB;
-        border: 2px solid transparent;
+        
+        /* Default (Rank 4+) */
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
     }
 
     .leaderboard-row:hover {
-        background: white;
         transform: translateX(4px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
 
-    /* Top 3 Rows */
+    /* --- Top 3 Rows (The Soft Gradients) --- */
+    
+    /* Rank 1: Gold */
     .leaderboard-row.rank-1 {
-        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-        border-color: #FCD34D;
+        background: linear-gradient(to right, #FFFBEB, #FDE68A);
+        border: 2px solid #D97706; /* Strong Gold/Amber */
     }
 
+    /* Rank 2: Silver (Changed from Purple to Silver) */
     .leaderboard-row.rank-2 {
-        background: linear-gradient(135deg, #E0E7FF 0%, #C7D2FE 100%);
-        border-color: #A5B4FC;
+        background: linear-gradient(to right, #F8FAFC, #E2E8F0);
+        border: 2px solid #94A3B8; /* Metallic Silver */
     }
 
+    /* Rank 3: Bronze */
     .leaderboard-row.rank-3 {
-        background: linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%);
-        border-color: #FDBA74;
+        background: linear-gradient(to right, #FFF7ED, #FFEDD5);
+        border: 2px solid #EA580C; /* Deep Bronze/Orange */
     }
 
+    /* Hover Effects for Top 3 */
     .leaderboard-row.rank-1:hover,
     .leaderboard-row.rank-2:hover,
     .leaderboard-row.rank-3:hover {
@@ -220,7 +243,7 @@
         box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
     }
 
-    /* Rank Badge */
+    /* --- Rank Badges (The Number Boxes) --- */
     .rank-badge-cell {
         display: flex;
         align-items: center;
@@ -236,12 +259,17 @@
         justify-content: center;
         font-size: 18px;
         font-weight: 800;
-        color: white;
+        
+        /* Force WHITE text for numbers */
+        color: #FFFFFF !important; 
+        text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        
         position: relative;
     }
 
+    /* Badge 1: Deep Gold */
     .rank-badge.top-1 {
-        background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
         box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
     }
 
@@ -253,9 +281,10 @@
         font-size: 20px;
     }
 
+    /* Badge 2: Slate Silver (Updated to match Silver theme) */
     .rank-badge.top-2 {
-        background: linear-gradient(135deg, #6366F1 0%, #818CF8 100%);
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        background: linear-gradient(135deg, #94A3B8 0%, #475569 100%);
+        box-shadow: 0 4px 12px rgba(148, 163, 184, 0.4);
     }
 
     .rank-badge.top-2::after {
@@ -266,8 +295,9 @@
         font-size: 20px;
     }
 
+    /* Badge 3: Deep Bronze */
     .rank-badge.top-3 {
-        background: linear-gradient(135deg, #F97316 0%, #FB923C 100%);
+        background: linear-gradient(135deg, #F97316 0%, #C2410C 100%);
         box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
     }
 
@@ -279,8 +309,9 @@
         font-size: 20px;
     }
 
+    /* Badge 4+: Regular Grey */
     .rank-badge.regular {
-        background: linear-gradient(135deg, #9CA3AF 0%, #6B7280 100%);
+        background: #9CA3AF; /* Medium Grey so white text shows up */
         font-size: 16px;
     }
 

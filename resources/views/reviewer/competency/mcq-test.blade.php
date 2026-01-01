@@ -8,8 +8,8 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="{{ asset('js/reviewer/competency.js') }}" defer></script>
     @include('layouts.app')
-    @include('layouts.navCSS')
     @include('layouts.competencyCSS')
 </head>
 <body class="mcq-test-body">
@@ -85,16 +85,34 @@
                     @php
                         // Function to format code blocks in questions
                         function formatQuestionContent($content) {
-                            // Replace ```language code blocks with formatted HTML
+                            // First, handle existing code blocks with triple backticks
                             $content = preg_replace_callback(
                                 '/```(\w+)?\s*\n(.*?)\n```/s',
                                 function($matches) {
                                     $language = $matches[1] ?? 'code';
                                     $code = htmlspecialchars($matches[2]);
-                                    return '<div class="code-block-wrapper"><div class="code-block-header"><span class="code-language">' . strtoupper($language) . '</span></div><pre class="code-block"><code>' . $code . '</code></pre></div>';
+                                    return '<pre class="code-block"><code>' . $code . '</code></pre>';
                                 },
                                 $content
                             );
+                            
+                            // Handle plain code blocks for Question Evaluation (code between "Question Under Review:" and the evaluation prompt)
+                            // This catches multi-line code without backticks
+                            if (strpos($content, 'Question Under Review:') !== false) {
+                                $content = preg_replace_callback(
+                                    '/Question Under Review:\s*\n(.*?)(?=\n\n|\n[A-Z][a-z]+:|\z)/s',
+                                    function($matches) {
+                                        $codeBlock = trim($matches[1]);
+                                        // Only format as code block if it contains typical code characters
+                                        if (preg_match('/[{};()=\[\]]/', $codeBlock)) {
+                                            $code = htmlspecialchars($codeBlock);
+                                            return 'Question Under Review:<br><pre class="code-block"><code>' . $code . '</code></pre>';
+                                        }
+                                        return $matches[0];
+                                    },
+                                    $content
+                                );
+                            }
                             
                             // Handle inline code with backticks
                             $content = preg_replace('/`([^`]+)`/', '<code class="inline-code">$1</code>', $content);
@@ -160,113 +178,9 @@
     </div>
 
     <script>
-        let selectedAnswer = '{{ $previousAnswer ?? '' }}';
-
-        // Prevent copying and other actions on question content
-        document.addEventListener('DOMContentLoaded', function() {
-            const questionCard = document.querySelector('.question-card');
-            
-            // Prevent right-click context menu
-            questionCard.addEventListener('contextmenu', function(e) {
-                e.preventDefault();
-                return false;
-            });
-            
-            // Prevent copy shortcuts (Ctrl+C, Cmd+C)
-            questionCard.addEventListener('copy', function(e) {
-                e.preventDefault();
-                return false;
-            });
-            
-            // Prevent cut shortcuts (Ctrl+X, Cmd+X)
-            questionCard.addEventListener('cut', function(e) {
-                e.preventDefault();
-                return false;
-            });
-            
-            // Prevent drag selection
-            questionCard.addEventListener('dragstart', function(e) {
-                e.preventDefault();
-                return false;
-            });
-            
-            // Prevent keyboard shortcuts
-            questionCard.addEventListener('keydown', function(e) {
-                // Prevent Ctrl+C, Cmd+C, Ctrl+X, Cmd+X, Ctrl+A, Cmd+A
-                if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x' || e.key === 'a')) {
-                    e.preventDefault();
-                    return false;
-                }
-            });
-
-            // Use event delegation to handle option clicks
-            const optionsList = document.querySelector('.options-list');
-            
-            optionsList.addEventListener('click', function(e) {
-                const optionItem = e.target.closest('.option-item');
-                if (!optionItem) return;
-                
-                // Get the option letter (A, B, C, or D)
-                const answer = optionItem.getAttribute('data-option-value');
-                
-                // Remove selected class from all options
-                document.querySelectorAll('.option-item').forEach(opt => {
-                    opt.classList.remove('selected');
-                });
-
-                // Add selected class to clicked option
-                optionItem.classList.add('selected');
-                
-                // Set the answer
-                selectedAnswer = answer;
-                document.getElementById('selectedAnswer').value = answer;
-                
-                // Enable submit button
-                document.getElementById('submitBtn').disabled = false;
-            });
-        });
-
-        function goToPrevious() {
-            document.getElementById('previousForm').submit();
-        }
-
-        // Timer countdown - using remaining seconds from server
-        let timeLeft = {{ $remainingSeconds ?? 2700 }}; // Remaining time from server
-        
-        function updateTimer() {
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            document.getElementById('timer').textContent = 
-                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            
-            if (timeLeft <= 0) {
-                // Time's up, submit the form
-                document.getElementById('mcqForm').submit();
-            } else {
-                timeLeft--;
-            }
-        }
-        
-        // Update timer immediately and then every second
-        updateTimer();
-        setInterval(updateTimer, 1000);
-
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
+        window.testConfig = {
+            remainingSeconds: {{ $remainingSeconds ?? 2700 }}
+        };
     </script>
 </body>
 </html>

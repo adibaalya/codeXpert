@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>History - CodeXpert</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    @include('layouts.historyCSS')
+    <script src="{{ asset('js/navBar.js') }}"></script>
+    <script src="{{ asset('js/reviewer/history.js') }}"></script>
+    @include('layouts.reviewer.historyCSS')
     @include('layouts.navCSS')
 </head>
 <body>
@@ -31,14 +33,22 @@
                     <div class="user-role">Reviewer</div>
                 </div>
                 <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
-                    {{ strtoupper(substr($reviewer->username ?? 'DS', 0, 1)) }}{{ strtoupper(substr($reviewer->username ?? 'DS', 1, 1) ?? '') }}
+                    @if($reviewer->profile_photo)
+                        <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                    @else
+                        {{ strtoupper(substr($reviewer->username ?? 'DS', 0, 1)) }}{{ strtoupper(substr($reviewer->username ?? 'DS', 1, 1) ?? '') }}
+                    @endif
                 </div>
                 
                 <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
                     <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
-                            {{ strtoupper(substr($reviewer->username, 0, 2)) }}
+                            @if($reviewer->profile_photo)
+                                <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                            @else
+                                {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                            @endif
                         </div>
                         <div>
                             <div class="user-dropdown-name">{{ $reviewer->username }}</div>
@@ -108,21 +118,21 @@
                     <label class="filter-label">Difficulty</label>
                     <select class="filter-select" id="difficultyFilter">
                         <option value="">All Difficulties</option>
-                        <option value="beginner">Beginner</option>
-                        <option value="intermediate">Intermediate</option>
-                        <option value="advanced">Advanced</option>
+                        <option value="Beginner">Beginner</option>
+                        <option value="Intermediate">Intermediate</option>
+                        <option value="Advanced">Advanced</option>
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label class="filter-label">Topic</label>
+                    <label class="filter-label">Language</label>
                     <select class="filter-select" id="topicFilter">
-                        <option value="">All Topics</option>
-                        <option value="algorithms">Algorithms</option>
-                        <option value="data-structures">Data Structures</option>
-                        <option value="basics">Basics</option>
-                        <option value="trees">Trees</option>
-                        <option value="graphs">Graphs</option>
-                        <option value="dynamic-programming">Dynamic Programming</option>
+                        <option value="">All Language</option>
+                        <option value="Python">Python</option>
+                        <option value="Java">Java</option>
+                        <option value="JavaScript">JavaScript</option>
+                        <option value="C">C</option>
+                        <option value="C++">C++</option>
+                        <option value="PHP">PHP</option>
                     </select>
                 </div>
             </div>
@@ -138,8 +148,8 @@
                                 <span class="badge {{ strtolower($question->difficulty ?? 'intermediate') }}">
                                     {{ ucfirst($question->difficulty ?? 'Intermediate') }}
                                 </span>
-                                <span class="badge {{ strtolower(str_replace(' ', '-', $question->topic ?? 'algorithms')) }}">
-                                    {{ $question->topic ?? 'Algorithms' }}
+                                <span class="badge {{ strtolower(str_replace(' ', '-', $question->language ?? 'Java')) }}">
+                                    {{ $question->language ?? 'Java' }}
                                 </span>
                             </div>
                             <h3 class="question-title">{{ $question->title ?? 'Untitled' }}</h3>
@@ -185,172 +195,23 @@
     </div>
 
     <script>
-        // Store questions data for modal
-        const questionsData = {!! json_encode($questions->map(function($q) {
-            return [
-                'id' => $q->id,
-                'title' => $q->title,
-                'description' => $q->description,
-                'problem_statement' => $q->problem_statement,
-                'constraints' => $q->constraints,
-                'input_format' => $q->input_format,
-                'output_format' => $q->output_format,
-                'hint' => $q->hint,
-                'difficulty' => $q->difficulty ?? $q->level ?? 'Intermediate',
-                'language' => $q->language ?? 'Python',
-                'chapter' => $q->chapter,
-            ];
-        })->keyBy('id')) !!};
-
-        // Modal functions
-        function openModal(questionId) {
-            const question = questionsData[questionId];
-            if (!question) return;
-
-            // Set the modal title to the question title
-            document.getElementById('modalTitle').textContent = question.title || 'Untitled Question';
-
-            // Format and display the content
-            const contentDiv = document.getElementById('modalContentFormatted');
-            contentDiv.innerHTML = formatQuestionContent(question);
-
-            document.getElementById('modalOverlay').classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
-
-        function formatQuestionContent(question) {
-            let html = '';
-
-            // Show Description
-            if (question.description) {
-                html += `
-                    <div class="content-section-modal">
-                        <h3 class="section-heading">Description</h3>
-                        <div class="section-text">${formatSectionContent(question.description)}</div>
-                    </div>
-                `;
-            }
-
-            // Show Problem Statement
-            if (question.problem_statement) {
-                html += `
-                    <div class="content-section-modal">
-                        <h3 class="section-heading">Problem Statement</h3>
-                        <div class="section-text">${formatSectionContent(question.problem_statement)}</div>
-                    </div>
-                `;
-            }
-
-            return html;
-        }
-
-        function parseContentSections(content) {
-            // ...existing code...
-        }
-
-        function formatSectionContent(text) {
-            if (!text) return '';
-            
-            // Escape HTML first
-            let formatted = escapeHtml(text);
-            
-            // Format bullet points (lines starting with - or •)
-            formatted = formatted.replace(/^[-•]\s+(.+)$/gm, '<div class="bullet-item">• $1</div>');
-            
-            // Format numbered lists
-            formatted = formatted.replace(/^(\d+)\.\s+(.+)$/gm, '<div class="bullet-item">$1. $2</div>');
-            
-            // Convert remaining line breaks to <br> (but not within bullet items)
-            formatted = formatted.split('\n').map(line => {
-                if (line.includes('<div class="bullet-item">')) {
-                    return line;
-                }
-                return line ? line + '<br>' : '<br>';
-            }).join('');
-            
-            return formatted;
-        }
-
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function closeModal() {
-            document.getElementById('modalOverlay').classList.remove('active');
-            document.body.style.overflow = 'auto';
-        }
-
-        function closeModalOnOverlay(event) {
-            if (event.target === document.getElementById('modalOverlay')) {
-                closeModal();
-            }
-        }
-
-        // Close modal on escape key
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                closeModal();
-            }
-        });
-
-        // Filter functionality
-        const searchInput = document.getElementById('searchInput');
-        const difficultyFilter = document.getElementById('difficultyFilter');
-        const topicFilter = document.getElementById('topicFilter');
-
-        function filterQuestions() {
-            const searchTerm = searchInput.value.toLowerCase();
-            const difficulty = difficultyFilter.value.toLowerCase();
-            const topic = topicFilter.value.toLowerCase();
-
-            const cards = document.querySelectorAll('.question-card');
-            let visibleCount = 0;
-
-            cards.forEach(card => {
-                const title = card.querySelector('.question-title').textContent.toLowerCase();
-                const description = card.querySelector('.question-description').textContent.toLowerCase();
-                const cardDifficulty = card.querySelector('.badge:first-child').textContent.toLowerCase();
-                const cardTopic = card.querySelector('.badge:nth-child(2)').textContent.toLowerCase();
-
-                const matchesSearch = !searchTerm || title.includes(searchTerm) || description.includes(searchTerm);
-                const matchesDifficulty = !difficulty || cardDifficulty.includes(difficulty);
-                const matchesTopic = !topic || cardTopic.includes(topic);
-
-                if (matchesSearch && matchesDifficulty && matchesTopic) {
-                    card.style.display = 'block';
-                    visibleCount++;
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-
-            // Update showing count
-            const showingCount = document.querySelector('.showing-count');
-            const total = cards.length;
-            showingCount.innerHTML = `Showing <strong>${visibleCount}</strong> of <strong>${total}</strong> questions`;
-        }
-
-        searchInput.addEventListener('input', filterQuestions);
-        difficultyFilter.addEventListener('change', filterQuestions);
-        topicFilter.addEventListener('change', filterQuestions);
-
-        // Toggle user dropdown menu
-        function toggleUserMenu(event) {
-            const dropdown = document.getElementById('userDropdown');
-            dropdown.classList.toggle('show');
-            event.stopPropagation();
-        }
-
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function() {
-            const dropdown = document.getElementById('userDropdown');
-            if (dropdown.classList.contains('show')) {
-                dropdown.classList.remove('show');
-            }
-        });
+        window.historyConfig = {
+            questions: {!! json_encode($questions->map(function($q) {
+                return [
+                    'id' => $q->id,
+                    'title' => $q->title,
+                    'description' => $q->description,
+                    'problem_statement' => $q->problem_statement,
+                    'constraints' => $q->constraints,
+                    'input_format' => $q->input_format,
+                    'output_format' => $q->output_format,
+                    'hint' => $q->hint,
+                    'difficulty' => $q->difficulty ?? $q->level ?? 'Intermediate',
+                    'language' => $q->language ?? 'Python',
+                    'chapter' => $q->chapter,
+                ];
+            })->keyBy('id')) !!}
+        };
     </script>
 </body>
 </html>

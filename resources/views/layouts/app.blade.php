@@ -426,6 +426,71 @@
             margin-top: 6px;
         }
 
+        /* Password Strength Indicator Styles */
+        .password-container {
+            position: relative;
+        }
+
+        .strength-meter {
+            height: 8px;
+            background-color: #E5E7EB;
+            margin-top: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        #strength-bar {
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease, background-color 0.3s ease;
+            border-radius: 5px;
+        }
+
+        #strength-text {
+            font-size: 13px;
+            margin-top: 8px;
+            font-weight: 600;
+            min-height: 18px;
+        }
+
+        .requirements-list {
+            font-size: 13px;
+            color: #666;
+            padding-left: 20px;
+            margin-top: 12px;
+            list-style: none;
+        }
+
+        .requirements-list li {
+            padding: 4px 0;
+            position: relative;
+            padding-left: 24px;
+            transition: color 0.2s;
+        }
+
+        .requirements-list li::before {
+            content: '○';
+            position: absolute;
+            left: 0;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .requirements-list li.valid {
+            color: #10B981;
+            font-weight: 600;
+        }
+
+        .requirements-list li.valid::before {
+            content: '✓';
+            color: #10B981;
+        }
+
+        .requirements-list li.invalid {
+            color: #9CA3AF;
+        }
+
         @media (max-width: 1024px) {
             .main-container {
                 grid-template-columns: 1fr;

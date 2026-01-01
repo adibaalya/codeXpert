@@ -11,6 +11,7 @@ use App\Services\AICodeFeedbackService;
 use App\Services\AIPlagiarismDetectionService;
 use App\Services\OutputNormalizer;
 use App\Services\CodeTemplateService;
+use App\Services\AchievementService;
 
 class CodeExecutionController extends Controller
 {
@@ -432,6 +433,32 @@ class CodeExecutionController extends Controller
                     ->where('language', $language)
                     ->update(['level' => $newLevel]);
             }
+
+            // ============================================================
+            // ACHIEVEMENT SYSTEM: Update Stats & Check Badges
+            // ============================================================
+            // Update learner stats
+            $learner->total_attempts++;
+            if ($questionScore == 100) {
+                $learner->solved_questions++;
+            }
+            
+            // Update streak logic
+            $today = now();
+            $last = $learner->last_activity_date ? \Carbon\Carbon::parse($learner->last_activity_date) : null;
+            
+            if ($last && $last->isYesterday()) {
+                $learner->current_streak++;
+            } elseif (!$last || !$last->isToday()) {
+                $learner->current_streak = 1; // Reset if not today and not yesterday
+            }
+            
+            $learner->last_activity_date = $today;
+            $learner->save();
+            
+            // Check for earned badges
+            $achievementService = app(AchievementService::class);
+            $achievementService->checkLearnerBadges($learner, $language);
             
             \DB::commit();
             

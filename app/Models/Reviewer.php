@@ -36,4 +36,12 @@ class Reviewer extends Authenticatable
             'isQualified' => 'boolean',
         ];
     }
+
+    /**
+     * Get the badges for the reviewer
+     */
+    public function badges()
+    {
+        return $this->morphMany(UserBadge::class, 'badgeable');
+    }
 }

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\Question;
+use App\Services\AchievementService;
 
 class QuestionGeneratorController extends Controller
 {
@@ -212,6 +213,16 @@ class QuestionGeneratorController extends Controller
                 'hint' => $request->expectedApproach,
                 'input' => $inputData, // Casts to JSON
             ]);
+
+            // ============================================================
+            // ACHIEVEMENT SYSTEM: Update Stats & Check Badges
+            // ============================================================
+            $reviewer->questions_generated_count++;
+            $reviewer->save();
+            
+            // Check for earned badges
+            $achievementService = app(AchievementService::class);
+            $achievementService->checkReviewerBadges($reviewer);
 
             return response()->json([
                 'success' => true,

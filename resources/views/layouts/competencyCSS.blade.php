@@ -1804,6 +1804,21 @@
             justify-content: center;
             gap: 8px;
         }
+        .result-btn-reviewer {
+            flex: 1;
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
 
         .result-btn-primary {
             background-image: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%);
@@ -1819,7 +1834,7 @@
         .result-btn-reviewer-primary {
             background-image: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
             color: white;
-            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+            box-shadow: 0 4px 15px rgba(164, 53, 255, 0.3);
         }
 
         .result-btn-reviewer-primary:hover {

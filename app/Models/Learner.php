@@ -202,4 +202,12 @@ class Learner extends Authenticatable
 
         return $streak;
     }
+
+    /**
+     * Get the badges for the learner
+     */
+    public function badges()
+    {
+        return $this->morphMany(UserBadge::class, 'badgeable');
+    }
 }

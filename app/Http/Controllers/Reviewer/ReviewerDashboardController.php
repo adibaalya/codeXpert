@@ -9,6 +9,7 @@ use App\Models\Question;
 use App\Models\Reviewer;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\AchievementService;
 
 class ReviewerDashboardController extends Controller
 {
@@ -20,7 +21,7 @@ class ReviewerDashboardController extends Controller
         $pendingReviews = $this->getPendingReviewsCount();
         $approvedToday = $this->getApprovedTodayCount();
         $totalReviewed = $this->getTotalReviewedCount($reviewer);
-        $accuracyRate = $this->getAccuracyRate($reviewer);
+        $correctionsMade = $this->getCorrectionsMadeCount($reviewer);
         
         // Get weekly review data
         $weeklyData = $this->getWeeklyReviewData($reviewer);
@@ -36,7 +37,7 @@ class ReviewerDashboardController extends Controller
             'pendingReviews',
             'approvedToday',
             'totalReviewed',
-            'accuracyRate',
+            'correctionsMade',
             'weeklyData',
             'pendingQuestions',
             'recentActivities'
@@ -63,8 +64,7 @@ class ReviewerDashboardController extends Controller
         // Calculate statistics
         $stats = [
             'totalReviewed' => $this->getTotalReviewedCount($reviewer),
-            'approvalRate' => $this->getAccuracyRate($reviewer),
-            'avgReviewTime' => $this->getAverageReviewTime($reviewer->reviewer_ID),
+            'correctionsMade' => $this->getCorrectionsMadeCount($reviewer),
             'currentStreak' => \App\Models\ReviewerSession::getCurrentStreak($reviewer->reviewer_ID)
         ];
         
@@ -376,6 +376,24 @@ class ReviewerDashboardController extends Controller
         
         $question->save();
         
+        // ============================================================
+        // ACHIEVEMENT SYSTEM: Update Stats & Check Badges
+        // ============================================================
+        $reviewer->total_reviews++;
+        
+        // Track approved vs rejected reviews
+        if ($validated['overall_grade'] >= 70) {
+            $reviewer->clean_reviews_count++; // "No Errors" - Approved
+        } else {
+            $reviewer->errors_flagged_count++; // "Errors Found" - Rejected
+        }
+        
+        $reviewer->save();
+        
+        // Check for earned badges
+        $achievementService = app(AchievementService::class);
+        $achievementService->checkReviewerBadges($reviewer);
+        
         return response()->json([
             'success' => true,
             'message' => $validated['overall_grade'] >= 70 ? 'Question approved successfully!' : 'Question rejected (grade below 70%)',
@@ -435,46 +453,71 @@ class ReviewerDashboardController extends Controller
             ], 403);
         }
         
-        // Update fields if provided (for inline editing)
+        // ============================================================
+        // CORRECTION TRACKING: Detect if any fields were changed
+        // ============================================================
+        $hasChanges = false;
+        
+        // Check if description changed
         if (isset($validated['description'])) {
-            // Strip HTML tags and decode entities for clean text storage
-            $question->description = strip_tags(html_entity_decode($validated['description']));
+            $cleanDescription = strip_tags(html_entity_decode($validated['description']));
+            if ($cleanDescription !== $question->description) {
+                $hasChanges = true;
+                $question->description = $cleanDescription;
+            }
         }
         
+        // Check if problem_statement changed
         if (isset($validated['problem_statement'])) {
-            $question->problem_statement = strip_tags(html_entity_decode($validated['problem_statement']));
+            $cleanStatement = strip_tags(html_entity_decode($validated['problem_statement']));
+            if ($cleanStatement !== $question->problem_statement) {
+                $hasChanges = true;
+                $question->problem_statement = $cleanStatement;
+            }
         }
         
+        // Check if constraints changed
         if (isset($validated['constraints'])) {
-            $question->constraints = strip_tags(html_entity_decode($validated['constraints']));
+            $cleanConstraints = strip_tags(html_entity_decode($validated['constraints']));
+            if ($cleanConstraints !== $question->constraints) {
+                $hasChanges = true;
+                $question->constraints = $cleanConstraints;
+            }
         }
         
+        // Check if hint changed
         if (isset($validated['hint'])) {
-            // Extract hint text if it contains HTML
             $hintText = strip_tags(html_entity_decode($validated['hint']));
-            // Remove the "💡 Hint:" prefix if present
             $hintText = preg_replace('/^💡\s*Hint:\s*/i', '', $hintText);
-            $question->hint = trim($hintText);
+            $cleanHint = trim($hintText);
+            if ($cleanHint !== $question->hint) {
+                $hasChanges = true;
+                $question->hint = $cleanHint;
+            }
         }
         
-        // Update content field (for modal editing)
-        if (isset($validated['content'])) {
+        // Check if content changed
+        if (isset($validated['content']) && $validated['content'] !== $question->content) {
+            $hasChanges = true;
             $question->content = $validated['content'];
         }
         
-        // Update solution - use answersData for all question types
-        if (isset($validated['solution'])) {
+        // Check if solution changed
+        if (isset($validated['solution']) && $validated['solution'] !== $question->answersData) {
+            $hasChanges = true;
             $question->answersData = $validated['solution'];
         }
         
-        // Update options for MCQ
+        // Check if options changed (for MCQ)
         if ($question->questionType === 'MCQ_Single' && isset($validated['options'])) {
-            $question->options = $validated['options'];
+            if (json_encode($validated['options']) !== json_encode($question->options)) {
+                $hasChanges = true;
+                $question->options = $validated['options'];
+            }
         }
         
-        // Update test cases for coding questions - store in input/expected_output columns
+        // Check if test cases changed
         if ($question->questionType !== 'MCQ_Single' && isset($validated['test_cases']) && is_array($validated['test_cases'])) {
-            // Extract inputs and expected outputs from test cases
             $inputs = [];
             $outputs = [];
             
@@ -487,13 +530,19 @@ class ReviewerDashboardController extends Controller
                 }
             }
             
-            // Store in the existing input and expected_output columns
-            if (!empty($inputs)) {
+            if (!empty($inputs) && json_encode($inputs) !== json_encode($question->input)) {
+                $hasChanges = true;
                 $question->input = $inputs;
             }
-            if (!empty($outputs)) {
+            if (!empty($outputs) && json_encode($outputs) !== json_encode($question->expected_output)) {
+                $hasChanges = true;
                 $question->expected_output = $outputs;
             }
+        }
+        
+        // Mark question as edited if changes were detected
+        if ($hasChanges) {
+            $question->was_edited = true;
         }
         
         $question->save();
@@ -577,6 +626,17 @@ class ReviewerDashboardController extends Controller
     {
         // Count questions that were reviewed (approved or rejected) by this specific reviewer
         return Question::where('reviewer_ID', $reviewer->reviewer_ID)
+            ->whereIn('status', ['Approved', 'Rejected'])
+            ->count();
+    }
+    
+    /**
+     * Count how many questions were edited/corrected by the reviewer before approval
+     */
+    private function getCorrectionsMadeCount($reviewer)
+    {
+        return Question::where('reviewer_ID', $reviewer->reviewer_ID)
+            ->where('was_edited', true)
             ->whereIn('status', ['Approved', 'Rejected'])
             ->count();
     }

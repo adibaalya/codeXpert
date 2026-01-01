@@ -6,7 +6,9 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Generate Questions with AI - CodeXpert</title>
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
-    @include('layouts.generateCSS')
+    <script src="{{ asset('js/navBar.js') }}"></script>
+    <script src="{{ asset('js/reviewer/generate.js') }}?v={{ time() }}"></script>
+    @include('layouts.reviewer.generateCSS')
     @include('layouts.navCSS')
 </head>
 <body>
@@ -32,14 +34,22 @@
                     <div class="user-role">Reviewer</div>
                 </div>
                 <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
-                    {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                    @if($reviewer->profile_photo)
+                        <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                    @else
+                        {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                    @endif
                 </div>
                 
                 <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
                     <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
-                            {{ strtoupper(substr($reviewer->username, 0, 2)) }}
+                            @if($reviewer->profile_photo)
+                                <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                            @else
+                                {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                            @endif
                         </div>
                         <div>
                             <div class="user-dropdown-name">{{ $reviewer->username }}</div>
@@ -112,6 +122,7 @@
                         <div class="form-group">
                             <label class="form-label">Language</label>
                             <select class="form-select" id="language" name="language">
+                                <option value="" selected disabled>Select Language</option>
                                 @foreach($languages as $language)
                                     <option value="{{ $language }}">{{ $language }}</option>
                                 @endforeach
@@ -121,8 +132,9 @@
                         <div class="form-group">
                             <label class="form-label">Difficulty</label>
                             <select class="form-select" id="difficulty" name="difficulty">
+                                <option value="" selected disabled>Select Difficulty</option>
                                 <option value="beginner">Beginner</option>
-                                <option value="intermediate" selected>Intermediate</option>
+                                <option value="intermediate">Intermediate</option>
                                 <option value="advanced">Advanced</option>
                             </select>
                         </div>
@@ -231,185 +243,31 @@
         </div>
     </div>
 
+    <!-- Success Modal -->
+    <div id="successModal" class="modal-overlay" style="display: none;">
+        <div class="success-modal-container">
+            <div class="success-icon-circle">
+                <svg class="success-checkmark" width="48" height="48" viewBox="0 0 48 48" fill="none">
+                    <path d="M8 24L18 34L40 12" stroke="#4CAF50" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            
+            <h2 class="success-title" id="successTitle">Question Saved</h2>
+            <p class="success-message" id="successMessage"></p>
+            
+            <button class="btn-continue" onclick="closeModal()">
+                Continue
+            </button>
+        </div>
+    </div>
+
     <script>
-        let currentQuestionData = null;
-
-        function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            event.target.closest('.tab').classList.add('active');
-
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            document.getElementById(tabName + 'Tab').classList.add('active');
-        }
-
-        function regenerate() {
-            document.getElementById('generatedContent').classList.remove('active');
-            document.getElementById('emptyState').style.display = 'flex';
-            currentQuestionData = null;
-        }
-
-        async function saveToQueue() {
-            if (!currentQuestionData) {
-                alert('No question to save!');
-                return;
+        window.generateConfig = {
+            routes: {
+                generate: "{{ route('reviewer.generate.question') }}",
+                save: "{{ route('reviewer.generate.save') }}"
             }
-
-            const saveBtn = event.target;
-            const originalText = saveBtn.textContent;
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving...';
-
-            try {
-                const response = await fetch('{{ route("reviewer.generate.save") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    },
-                    body: JSON.stringify(currentQuestionData)
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    alert('✅ Question saved successfully to the review queue!');
-                    regenerate();
-                } else {
-                    alert('❌ Error: ' + result.message);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('❌ An error occurred while saving the question.');
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.textContent = originalText;
-            }
-        }
-
-        document.getElementById('generateForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData);
-
-            // Show loading state
-            document.getElementById('emptyState').style.display = 'none';
-            document.getElementById('generatedContent').classList.remove('active');
-            document.getElementById('loadingState').style.display = 'block';
-            document.getElementById('generateBtn').disabled = true;
-
-            try {
-                const response = await fetch('{{ route("reviewer.generate.question") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    },
-                    body: JSON.stringify(data)
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    // Hide loading, show generated content
-                    document.getElementById('loadingState').style.display = 'none';
-                    document.getElementById('generatedContent').classList.add('active');
-
-                    // Store the complete question data for saving later
-                    currentQuestionData = {
-                        ...result.data,
-                        language: data.language,
-                        difficulty: data.difficulty
-                    };
-
-                    // Populate the content
-                    document.getElementById('questionTitle').textContent = result.data.title;
-                    document.getElementById('difficultyBadge').textContent = data.difficulty.charAt(0).toUpperCase() + data.difficulty.slice(1);
-                    document.getElementById('topicBadge').textContent = result.data.topic.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                    document.getElementById('languageBadge').textContent = data.language;
-                    
-                    document.getElementById('problemDescription').textContent = result.data.description;
-                    document.getElementById('problemStatement').textContent = result.data.problemStatement;
-                    document.getElementById('expectedApproach').textContent = result.data.expectedApproach;
-
-                    // Populate constraints
-                    const constraintsList = document.getElementById('constraintsList');
-                    constraintsList.innerHTML = '';
-                    result.data.constraints.forEach(constraint => {
-                        const li = document.createElement('li');
-                        li.textContent = constraint;
-                        constraintsList.appendChild(li);
-                    });
-
-                    // Populate tests
-                    const testsContent = document.getElementById('testsContent');
-                    testsContent.innerHTML = '';
-                    result.data.tests.forEach((test, index) => {
-                        testsContent.innerHTML += `
-                            <div style="margin-bottom: 20px;">
-                                <div class="section-title">Test ${index + 1}</div>
-                                <div class="problem-text"><strong>Input:</strong> ${test.input}</div>
-                                <div class="problem-text"><strong>Expected Output:</strong> ${test.output}</div>
-                                ${test.explanation ? `<div class="problem-text"><strong>Explanation:</strong> ${test.explanation}</div>` : ''}
-                            </div>
-                        `;
-                    });
-                    document.getElementById('testCount').textContent = result.data.tests.length;
-
-                    // Populate solution
-                    document.getElementById('solutionContent').innerHTML = `<pre style="background: #f3f4f6; padding: 16px; border-radius: 8px; overflow-x: auto;"><code>${escapeHtml(result.data.solution)}</code></pre>`;
-                } else {
-                    document.getElementById('loadingState').style.display = 'none';
-                    document.getElementById('errorState').style.display = 'block';
-                    document.getElementById('errorTitle').textContent = 'Generation Failed';
-                    document.getElementById('errorMessage').textContent = result.message;
-                    if (result.message.includes('rate limit')) {
-                        document.getElementById('retryButton').style.display = 'none';
-                    } else {
-                        document.getElementById('retryButton').style.display = 'block';
-                    }
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                document.getElementById('loadingState').style.display = 'none';
-                document.getElementById('errorState').style.display = 'block';
-                document.getElementById('errorTitle').textContent = 'An Error Occurred';
-                document.getElementById('errorMessage').textContent = 'An error occurred while generating the question. Please try again.';
-                document.getElementById('retryButton').style.display = 'block';
-            } finally {
-                document.getElementById('generateBtn').disabled = false;
-            }
-        });
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function retryGeneration() {
-            document.getElementById('errorState').style.display = 'none';
-            document.getElementById('loadingState').style.display = 'block';
-            document.getElementById('loadingText').textContent = 'Retrying...';
-            document.getElementById('loadingSubtext').style.display = 'block';
-            document.getElementById('loadingSubtext').textContent = 'Please wait while we retry generating your question.';
-            document.getElementById('generateForm').dispatchEvent(new Event('submit'));
-        }
-
-        function toggleUserMenu(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-            event.stopPropagation();
-        }
-
-        document.addEventListener('click', function() {
-            const userDropdown = document.getElementById('userDropdown');
-            if (userDropdown.classList.contains('show')) {
-                userDropdown.classList.remove('show');
-            }
-        });
+        };
     </script>
 </body>
 </html>

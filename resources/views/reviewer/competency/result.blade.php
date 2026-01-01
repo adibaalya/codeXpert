@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="{{ asset('js/navBar.js') }}"></script>
+    <script src="{{ asset('js/result.js') }}"></script>
     @include('layouts.navCSS')
     @include('layouts.competencyCSS')
     
@@ -35,14 +37,22 @@
                     <div class="user-role">Reviewer</div>
                 </div>
                 <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
-                    {{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 0, 1)) }}{{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 1, 1) ?? '') }}
+                    @if($reviewer->profile_photo)
+                        <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                    @else
+                        {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                    @endif
                 </div>
                 
                 <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
                     <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
-                            {{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 0, 2)) }}
+                            @if($reviewer->profile_photo)
+                                <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                            @else
+                                {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                            @endif
                         </div>
                         <div>
                             <div class="user-dropdown-name">{{ Auth::guard('reviewer')->user()->username }}</div>
@@ -427,58 +437,12 @@
                         Test Another Language
                     </a>
                 @endif
-                <a href="{{ route('reviewer.dashboard') }}" class="result-btn-reviewer result-btn-primary">
+                <a href="{{ route('reviewer.dashboard') }}" class="result-btn-reviewer result-btn-reviewer-primary">
                     Continue to Dashboard
                 </a>
             </div>
         </div>
     </div>
 
-    <script>
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
-
-        // Animate progress bars on load
-        window.addEventListener('load', function() {
-            const progressBars = document.querySelectorAll('.result-progress-fill');
-            progressBars.forEach(bar => {
-                const width = bar.style.width;
-                bar.style.width = '0%';
-                setTimeout(() => {
-                    bar.style.width = width;
-                }, 100);
-            });
-        });
-
-        // Toggle Accordion
-        function toggleAccordion(id) {
-            const content = document.getElementById(id);
-            const icon = document.getElementById(id + '-icon');
-            
-            if (content.style.maxHeight && content.style.maxHeight !== '0px') {
-                // Close the accordion
-                content.style.maxHeight = '0px';
-                icon.style.transform = 'rotate(0deg)';
-            } else {
-                // Open the accordion
-                content.style.maxHeight = content.scrollHeight + 'px';
-                icon.style.transform = 'rotate(180deg)';
-            }
-        }
-    </script>
 </body>
 </html>

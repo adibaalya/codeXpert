@@ -5,245 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Profile - CodeXpert</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="{{ asset('js/navBar.js') }}"></script>
+    <script src="{{ asset('js/edit-profile.js') }}"></script>
     @include('layouts.profileCSS')
     @include('layouts.navCSS')
-    <style>
-        .edit-profile-container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-
-        .edit-profile-card {
-            background: white;
-            border-radius: 24px;
-            padding: 40px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        }
-
-        .edit-profile-header {
-            margin-bottom: 40px;
-        }
-
-        .edit-profile-header h1 {
-            font-size: 28px;
-            font-weight: 700;
-            color: #2d2d2d;
-            margin-bottom: 8px;
-        }
-
-        .edit-profile-header p {
-            font-size: 14px;
-            color: #8e8e93;
-        }
-
-        .form-group {
-            margin-bottom: 30px;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 14px;
-            font-weight: 600;
-            color: #2d2d2d;
-            margin-bottom: 8px;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e5e7eb;
-            border-radius: 12px;
-            font-size: 14px;
-            font-family: 'Inter', sans-serif;
-            transition: border-color 0.2s;
-        }
-
-        .form-input:focus {
-            outline: none;
-            border-color: rgb(92, 33, 195);
-        }
-
-        .form-input:disabled {
-            background-color: #f3f4f6;
-            cursor: not-allowed;
-        }
-
-        .photo-upload-section {
-            display: flex;
-            align-items: center;
-            gap: 24px;
-            padding: 24px;
-            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-            border: 1px solid #e5e7eb;
-            border-radius: 16px;
-        }
-
-        .current-photo {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 8px 24px rgba(164, 53, 255, 0.3);
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-
-        .current-photo img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .current-photo svg {
-            width: 60px;
-            height: 60px;
-            color: white;
-        }
-
-        .photo-upload-content {
-            flex: 1;
-        }
-
-        .photo-upload-content h3 {
-            font-size: 16px;
-            font-weight: 700;
-            color: #2d2d2d;
-            margin-bottom: 8px;
-        }
-
-        .photo-upload-content p {
-            font-size: 13px;
-            color: #8e8e93;
-            margin-bottom: 16px;
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            display: inline-block;
-        }
-
-        .file-input-wrapper input[type="file"] {
-            position: absolute;
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .upload-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            background: white;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            color: #2d2d2d;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .upload-btn:hover {
-            border-color: rgb(92, 33, 195);
-            color: rgb(92, 33, 195);
-        }
-
-        .remove-photo-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            background: white;
-            border: 2px solid #ef4444;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            color: #ef4444;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-left: 12px;
-        }
-
-        .remove-photo-btn:hover {
-            background: #ef4444;
-            color: white;
-        }
-
-        .form-actions {
-            display: flex;
-            gap: 16px;
-            margin-top: 40px;
-            padding-top: 30px;
-            border-top: 1px solid #e5e7eb;
-        }
-
-        .btn-save {
-            flex: 1;
-            padding: 14px 24px;
-            background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .btn-save:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(164, 53, 255, 0.3);
-        }
-
-        .btn-cancel {
-            flex: 1;
-            padding: 14px 24px;
-            background: white;
-            color: #6e6e73;
-            border: 2px solid #e5e7eb;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-cancel:hover {
-            border-color: #d1d5db;
-            color: #2d2d2d;
-        }
-
-        .alert {
-            padding: 16px 20px;
-            border-radius: 12px;
-            margin-bottom: 24px;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .alert-success {
-            background: rgba(34, 197, 94, 0.1);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            color: #16a34a;
-        }
-
-        .alert-error {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            color: #dc2626;
-        }
-
-        .file-name-display {
-            margin-top: 8px;
-            font-size: 13px;
-            color: #6e6e73;
-        }
-    </style>
 </head>
 <body class="reviewer-body">
     <!-- Header -->
@@ -269,7 +34,7 @@
                 </div>
                 <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
                     @if($reviewer->profile_photo)
-                        <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}">
+                        <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
                     @else
                         {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
                     @endif
@@ -368,7 +133,7 @@
                 <div class="form-group">
                     <label class="form-label">Profile Photo</label>
                     <div class="photo-upload-section">
-                        <div class="current-photo" id="photoPreview">
+                        <div class="current-photo-reviewer" id="photoPreview">
                             @if($reviewer->profile_photo)
                                 <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="Profile Photo">
                             @else
@@ -383,7 +148,7 @@
                             <p>JPG, PNG or GIF. Max size of 2MB. Recommended size: 400x400px</p>
                             <div class="file-input-wrapper">
                                 <input type="file" id="profile_photo" name="profile_photo" accept="image/*" onchange="previewPhoto(event)">
-                                <label for="profile_photo" class="upload-btn">
+                                <label for="profile_photo" class="upload-btn-reviewer">
                                     <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                     </svg>
@@ -407,13 +172,13 @@
                 <!-- Username -->
                 <div class="form-group">
                     <label for="username" class="form-label">Username</label>
-                    <input type="text" id="username" name="username" class="form-input" value="{{ old('username', $reviewer->username) }}" required maxlength="50">
+                    <input type="text" id="username" name="username" class="form-input-reviewer" value="{{ old('username', $reviewer->username) }}" required maxlength="50">
                 </div>
 
                 <!-- Email (Readonly) -->
                 <div class="form-group">
                     <label for="email" class="form-label">Email Address</label>
-                    <input type="email" id="email" class="form-input" value="{{ $reviewer->email }}" disabled>
+                    <input type="email" id="email" class="form-input-reviewer" value="{{ $reviewer->email }}" disabled>
                     <small style="display: block; margin-top: 8px; font-size: 12px; color: #8e8e93;">
                         Email cannot be changed. Contact support if you need to update your email.
                     </small>
@@ -424,90 +189,12 @@
                     <button type="button" class="btn-cancel" onclick="window.location.href='{{ route('reviewer.profile') }}'">
                         Cancel
                     </button>
-                    <button type="submit" class="btn-save">
+                    <button type="submit" class="btn-save-reviewer">
                         Save Changes
                     </button>
                 </div>
             </form>
         </div>
     </div>
-
-    <script>
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
-
-        // Preview uploaded photo
-        function previewPhoto(event) {
-            const file = event.target.files[0];
-            const preview = document.getElementById('photoPreview');
-            const fileName = document.getElementById('fileName');
-            
-            if (file) {
-                // Check file size (2MB max)
-                if (file.size > 2 * 1024 * 1024) {
-                    alert('File size must be less than 2MB');
-                    event.target.value = '';
-                    return;
-                }
-
-                // Check file type
-                if (!file.type.startsWith('image/')) {
-                    alert('Please upload an image file');
-                    event.target.value = '';
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    preview.innerHTML = '<img src="' + e.target.result + '" alt="Profile Photo">';
-                    fileName.textContent = 'Selected: ' + file.name;
-                }
-                reader.readAsDataURL(file);
-
-                // Reset remove photo flag
-                const removePhotoInput = document.getElementById('remove_photo');
-                if (removePhotoInput) {
-                    removePhotoInput.value = '0';
-                }
-            }
-        }
-
-        // Remove photo
-        function removePhoto() {
-            if (confirm('Are you sure you want to remove your profile photo?')) {
-                const preview = document.getElementById('photoPreview');
-                const removePhotoInput = document.getElementById('remove_photo');
-                const fileInput = document.getElementById('profile_photo');
-                const fileName = document.getElementById('fileName');
-                
-                // Reset to default avatar
-                preview.innerHTML = `
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                    </svg>
-                `;
-                
-                // Set flag to remove photo
-                removePhotoInput.value = '1';
-                fileInput.value = '';
-                fileName.textContent = 'Photo will be removed when you save';
-            }
-        }
-    </script>
 </body>
 </html>

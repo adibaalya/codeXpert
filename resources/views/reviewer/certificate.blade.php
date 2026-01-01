@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Certificate of {{ ucfirst($language) }} Competency</title>
-    @include('layouts.certificationCSS')
+    @include('layouts.reviewer.certificationCSS')
     
 </head>
 <body>

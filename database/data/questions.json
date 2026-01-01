@@ -1,1 +1,153 @@
-[]
+[
+    [
+        {
+          "title": "MCQ: Pointer Usage",
+          "content": "What is the main purpose of pointers in C++?",
+          "description": "What is the main purpose of pointers in C++?",
+          "answersData": "B",
+          "options": {
+            "A": "To store large data directly",
+            "B": "To store memory addresses of variables",
+            "C": "To replace classes",
+            "D": "To avoid using references"
+          },
+          "status": "Approved",
+          "language": "C++",
+          "level": "intermediate",
+          "questionCategory": "competencyTest",
+          "questionType": "MCQ_Question",
+          "chapter": "Pointers",
+          "created_at": "2024-01-01 12:00:00",
+          "updated_at": "2024-01-01 12:00:00"
+        },
+        {
+          "title": "MCQ: Memory Management",
+          "content": "Which is a key practice to avoid memory leaks in C++?",
+          "description": "Which is a key practice to avoid memory leaks in C++?",
+          "answersData": "A",
+          "options": {
+            "A": "Use delete/free for dynamically allocated memory",
+            "B": "Always use global variables",
+            "C": "Avoid using functions",
+            "D": "Use static arrays only"
+          },
+          "status": "Approved",
+          "language": "C++",
+          "level": "intermediate",
+          "questionCategory": "competencyTest",
+          "questionType": "MCQ_Question",
+          "chapter": "Memory Management",
+          "created_at": "2024-01-01 12:00:00",
+          "updated_at": "2024-01-01 12:00:00"
+        },
+        {
+          "title": "MCQ: Buffer Safety",
+          "content": "Which technique helps prevent buffer overflow in C++?",
+          "description": "Which technique helps prevent buffer overflow in C++?",
+          "answersData": "C",
+          "options": {
+            "A": "Using gets() for input",
+            "B": "Ignoring array bounds",
+            "C": "Using std::vector or array with bounds checking",
+            "D": "Using raw uninitialized pointers"
+          },
+          "status": "Approved",
+          "language": "C++",
+          "level": "intermediate",
+          "questionCategory": "competencyTest",
+          "questionType": "MCQ_Question",
+          "chapter": "Security",
+          "created_at": "2024-01-01 12:00:00",
+          "updated_at": "2024-01-01 12:00:00"
+        },
+        {
+          "title": "Evaluation: Null Pointer Dereference",
+          "content": "int* ptr = nullptr;\n*ptr = 10;",
+          "description": "int* ptr = nullptr;\n*ptr = 10;",
+          "problem_statement": "Identify the bug in this code snippet.",
+          "answersData": "C",
+          "options": {
+            "A": "Pointer syntax is wrong",
+            "B": "10 cannot be assigned",
+            "C": "Dereferencing nullptr causes crash",
+            "D": "Missing semicolon"
+          },
+          "status": "Approved",
+          "language": "C++",
+          "level": "intermediate",
+          "questionCategory": "competencyTest",
+          "questionType": "Question_Evaluation",
+          "chapter": "Pointers",
+          "created_at": "2024-01-01 12:00:00",
+          "updated_at": "2024-01-01 12:00:00"
+        },
+        {
+          "title": "Evaluation: Array Out-of-Bounds",
+          "content": "int arr[4] = {1,2,3,4};\nfor(int i = 0; i <= 4; i++) {\n    std::cout << arr[i];\n}",
+          "description": "int arr[4] = {1,2,3,4};\nfor(int i = 0; i <= 4; i++) {\n    std::cout << arr[i];\n}",
+          "problem_statement": "Identify the off-by-one bug in this code snippet.",
+          "answersData": "B",
+          "options": {
+            "A": "Array declaration is incorrect",
+            "B": "Loop accesses out-of-bounds index",
+            "C": "std::cout syntax wrong",
+            "D": "Array elements uninitialized"
+          },
+          "status": "Approved",
+          "language": "C++",
+          "level": "intermediate",
+          "questionCategory": "competencyTest",
+          "questionType": "Question_Evaluation",
+          "chapter": "Arrays",
+          "created_at": "2024-01-01 12:00:00",
+          "updated_at": "2024-01-01 12:00:00"
+        },
+        {
+          "title": "Evaluation: Memory Leak",
+          "content": "int* ptr = new int[5];\nptr[0] = 1;",
+          "description": "int* ptr = new int[5];\nptr[0] = 1;",
+          "problem_statement": "Identify the memory management issue.",
+          "answersData": "D",
+          "options": {
+            "A": "new is unnecessary",
+            "B": "ptr[0] assignment invalid",
+            "C": "Array size should be 6",
+            "D": "Memory allocated is never deleted"
+          },
+          "status": "Approved",
+          "language": "C++",
+          "level": "intermediate",
+          "questionCategory": "competencyTest",
+          "questionType": "Question_Evaluation",
+          "chapter": "Memory Management",
+          "created_at": "2024-01-01 12:00:00",
+          "updated_at": "2024-01-01 12:00:00"
+        },
+        {
+          "title": "Code: Sum Array",
+          "function_name": "sumArray",
+          "return_type": "int",
+          "function_parameters": [
+            {"name": "arr", "type": "int*"},
+            {"name": "size", "type": "int"}
+          ],
+          "content": "int sumArray(int* arr, int size) {\n    int sum = 0;\n    for(int i = 0; i < size; i++) {\n        sum += arr[i];\n    }\n    return sum;\n}",
+          "description": "Write a function that returns the sum of all integers in an array.",
+          "problem_statement": "Write a function that returns the sum of all integers in an array.",
+          "constraints": "- Return 0 if empty",
+          "answersData": "int sumArray(int* arr, int size) {\n    int sum = 0;\n    for(int i = 0; i < size; i++) {\n        sum += arr[i];\n    }\n    return sum;\n}",
+          "hint": "Iterate through the array and add each element to a sum variable.",
+          "input": [{"test_case":1,"input":{"arr":[1,2,3],"size":3}}],
+          "expected_output": [{"test_case":1,"output":6}],
+          "status": "Approved",
+          "language": "C++",
+          "level": "intermediate",
+          "questionCategory": "competencyTest",
+          "questionType": "Code_Solution",
+          "chapter": "Algorithms",
+          "created_at": "2024-01-01 12:00:00",
+          "updated_at": "2024-01-01 12:00:00"
+        }
+      ]
+      
+]

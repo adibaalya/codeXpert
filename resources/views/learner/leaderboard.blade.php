@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leaderboard - CodeXpert</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    @include('layouts.leaderboardCSS')
-    @include('layouts.dashboardCSS')
+    <script src="{{ asset('js/navBar.js') }}"></script>
+    @include('layouts.learner.leaderboardCSS')
     @include('layouts.navCSS')
     
 </head>
@@ -101,9 +101,13 @@
         <div class="user-rank-card">
             <div class="user-rank-info">
                 <div class="user-rank-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                    </svg>
+                    @if($learner->profile_photo)
+                        <img src="{{ asset('storage/' . $learner->profile_photo) }}" alt="{{ $learner->username }}">
+                    @else
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                    @endif
                 </div>
                 <div class="user-rank-details">
                     <h3>Your Current Rank</h3>
@@ -183,24 +187,5 @@
             </div>
         </div>
     </div>
-
-    <script>
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
-    </script>
 </body>
 </html>

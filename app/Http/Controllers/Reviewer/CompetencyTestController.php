@@ -31,6 +31,7 @@ class CompetencyTestController extends Controller
 
     public function chooseLanguage()
     {
+        $reviewer = Auth::guard('reviewer')->user();
         // Get distinct languages from approved competency test questions
         $languages = Question::where('questionCategory', 'competencyTest')
             ->where('status', 'Approved')
@@ -76,8 +77,8 @@ class CompetencyTestController extends Controller
                 ->where('status', 'Approved')
                 ->count();
             
-            // Check if requirements are met
-            $isSufficient = ($mcqCount >= 4 && $evaluationCount >= 2 && $codeSolutionCount >= 2);
+            // Check if requirements are met (updated to 3 MCQ, 3 Evaluation, 1 Code Solution)
+            $isSufficient = ($mcqCount >= 3 && $evaluationCount >= 3 && $codeSolutionCount >= 1);
             
             $iconMap = [
                 'Python' => [
@@ -164,7 +165,7 @@ class CompetencyTestController extends Controller
             ];
         });
 
-        return view('reviewer.competency.choose-language', compact('languageData'));
+        return view('reviewer.competency.choose-language', compact('languageData', 'reviewer'));
     }
 
     public function startTest(Request $request)
@@ -183,35 +184,35 @@ class CompetencyTestController extends Controller
 
         $language = $request->language;
 
-        // Retrieve 4 MCQ_Question questions
+        // Retrieve 3 MCQ_Question questions (changed from 4)
         $mcqQuestions = Question::where('language', $language)
             ->where('questionCategory', 'competencyTest')
             ->where('questionType', 'MCQ_Question')
             ->where('status', 'Approved')
             ->inRandomOrder()
-            ->limit(4)
+            ->limit(3)
             ->get();
 
-        // Retrieve 2 Question_Evaluation questions
+        // Retrieve 3 Question_Evaluation questions (changed from 2)
         $evaluationQuestions = Question::where('language', $language)
             ->where('questionCategory', 'competencyTest')
             ->where('questionType', 'Question_Evaluation')
             ->where('status', 'Approved')
             ->inRandomOrder()
-            ->limit(2)
+            ->limit(3)
             ->get();
 
-        // Retrieve 2 Code_Solution questions for the code test phase
+        // Retrieve 1 Code_Solution question for the code test phase (changed from 2)
         $codeSolutionQuestions = Question::where('language', $language)
             ->where('questionCategory', 'competencyTest')
             ->where('questionType', 'Code_Solution')
             ->where('status', 'Approved')
             ->inRandomOrder()
-            ->limit(2)
+            ->limit(1)
             ->get();
 
-        // Check if we have enough questions
-        if ($mcqQuestions->count() < 4 || $evaluationQuestions->count() < 2 || $codeSolutionQuestions->count() < 2) {
+        // Check if we have enough questions (updated requirements)
+        if ($mcqQuestions->count() < 3 || $evaluationQuestions->count() < 3 || $codeSolutionQuestions->count() < 1) {
             return redirect()->back()->with('error', 'Not enough questions available for this language. Please contact administrator.');
         }
 
@@ -380,6 +381,17 @@ class CompetencyTestController extends Controller
 
         $questionId = $codeQuestions[$currentIndex];
         $question = Question::find($questionId);
+        
+        // Check if question exists
+        if (!$question) {
+            \Log::error('Question not found in showCode', [
+                'question_id' => $questionId,
+                'current_index' => $currentIndex
+            ]);
+            return redirect()->route('reviewer.competency.choose')
+                ->with('error', 'Question not found. Please restart the test.');
+        }
+        
         $language = session('test_language');
 
         return view('reviewer.competency.code-test', [
@@ -775,7 +787,7 @@ class CompetencyTestController extends Controller
         $mcqAnswers = session('mcq_answers', []);
         $codeSolutions = session('code_solutions', []);
 
-        // Calculate score for MCQ phase (4 MCQ_Question + 2 Question_Evaluation = 6 questions x 10 points = 60 points max)
+        // Calculate score for MCQ phase (3 MCQ_Question + 3 Question_Evaluation = 6 questions x 10 points = 60 points max)
         $mcqScore = 0;
         foreach ($mcqAnswers as $questionId => $answer) {
             $question = Question::find($questionId);
@@ -804,8 +816,8 @@ class CompetencyTestController extends Controller
         // Calculate average plagiarism score (100 = no plagiarism, 0 = high plagiarism)
         $avgPlagiarismScore = $plagiarismCount > 0 ? round($totalPlagiarismScore / $plagiarismCount, 2) : 100;
 
-        // Total: 60 + 20 = 80 points max, scale to 100
-        $totalScore = (($mcqScore + $codeScore) / 80) * 100;
+        // Total: 60 + 10 = 70 points max, scale to 100
+        $totalScore = (($mcqScore + $codeScore) / 70) * 100;
 
         // Determine pass/fail status
         // Must pass BOTH correctness (50%+) AND plagiarism (60%+) checks
@@ -864,6 +876,7 @@ class CompetencyTestController extends Controller
 
     public function showResult($id)
     {
+        $reviewer = Auth::guard('reviewer')->user();
         $result = CompetencyTestResult::findOrFail($id);
         $reviewer = Auth::guard('reviewer')->user();
 
@@ -872,6 +885,6 @@ class CompetencyTestController extends Controller
             abort(403);
         }
 
-        return view('reviewer.competency.result', compact('result'));
+        return view('reviewer.competency.result', compact('result', 'reviewer'));
     }
 }

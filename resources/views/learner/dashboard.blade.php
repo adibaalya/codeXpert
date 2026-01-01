@@ -6,8 +6,10 @@
     <title>Learner Dashboard - CodeXpert</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ asset('js/navBar.js') }}"></script>
     @include('layouts.dashboardCSS')
     @include('layouts.navCSS')
+    
 
 </head>
 <body>
@@ -142,7 +144,7 @@
                     <span class="stat-badge trending">{{ $achievements > 0 ? '↗' : '🎖️' }}</span>
                 </div>
                 <div class="stat-value">{{ $achievements }}</div>
-                <div class="stat-footer">{{ 8 - $achievements }} more to unlock</div>
+                <div class="stat-footer">{{ $achievements > 0 ? 'badges earned' : 'Start earning badges!' }}</div>
             </div>
         </div>
 
@@ -414,104 +416,14 @@
     </div>
 
     <script>
-        // Weekly Activity Chart
-        const ctx = document.getElementById('weeklyChart').getContext('2d');
-        const weeklyChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: {!! json_encode(collect($weeklyData)->pluck('day')) !!},
-                datasets: [{
-                    label: 'Practice Sessions',
-                    data: {!! json_encode(collect($weeklyData)->pluck('count')) !!},
-                    backgroundColor: function(context) {
-                        const chart = context.chart;
-                        const {ctx, chartArea} = chart;
-                        if (!chartArea) return null;
-                        
-                        const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-                        gradient.addColorStop(0, 'rgb(255, 87, 34)');
-                        gradient.addColorStop(1, 'rgb(255, 167, 38)');
-                        return gradient;
-                    },
-                    borderRadius: 8,
-                    borderSkipped: false,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: {
-                    duration: 0
-                },
-                hover: {
-                    mode: null
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        backgroundColor: '#1F2937',
-                        padding: 12,
-                        borderRadius: 8,
-                        titleColor: '#F9FAFB',
-                        bodyColor: '#F9FAFB',
-                        displayColors: false,
-                        callbacks: {
-                            label: function(context) {
-                                return 'Sessions: ' + context.parsed.y;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            display : false,
-                            drawBorder: false
-                        },
-                        ticks: {
-                            color: '#6B7280',
-                            font: {
-                                size: 12,
-                                weight: 600
-                            }
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false,
-                            drawBorder: false
-                        },
-                        ticks: {
-                            color: '#6B7280',
-                            font: {
-                                size: 12,
-                                weight: 600
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
+        window.dashboardConfig = {
+            labels: {!! json_encode(collect($weeklyData)->pluck('day')) !!},
+            data: {!! json_encode(collect($weeklyData)->pluck('count')) !!},
+            // Orange Gradients
+            colorStart: 'rgb(255, 87, 34)',
+            colorEnd: 'rgb(255, 167, 38)'
+        };
     </script>
+    <script src="{{ asset('js/weeklyChart.js') }}"></script>
 </body>
 </html>

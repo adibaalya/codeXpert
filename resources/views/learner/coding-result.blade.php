@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="{{ asset('js/navBar.js') }}"></script>
+    <script src="{{ asset('js/result.js') }}"></script>
     @include('layouts.navCSS')
     @include('layouts.competencyCSS')
     
@@ -468,92 +470,5 @@
             </div>
         </div>
     </div>
-
-    <script>
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
-
-        // Toggle test results details
-        function toggleTestResults() {
-            const details = document.getElementById('testResultsDetails');
-            const chevron = document.getElementById('chevron');
-            
-            if (details.style.display === 'none') {
-                details.style.display = 'block';
-                chevron.style.transform = 'rotate(180deg)';
-            } else {
-                details.style.display = 'none';
-                chevron.style.transform = 'rotate(0deg)';
-            }
-        }
-
-        // Animate progress bars on load
-        window.addEventListener('load', function() {
-            const progressBars = document.querySelectorAll('.result-progress-fill');
-            progressBars.forEach(bar => {
-                const width = bar.style.width;
-                bar.style.width = '0%';
-                setTimeout(() => {
-                    bar.style.width = width;
-                }, 100);
-            });
-        });
-
-        // Toggle feedback sections
-        function toggleFeedbackSection(section) {
-            const content = document.getElementById(`feedback-${section}`);
-            const chevron = content.previousElementSibling.querySelector('.chevron-icon');
-            
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                chevron.style.transform = 'rotate(180deg)';
-            } else {
-                content.style.display = 'none';
-                chevron.style.transform = 'rotate(0deg)';
-            }
-        }
-
-        // Toggle plagiarism details
-        function togglePlagiarismDetails() {
-            const details = document.getElementById('plagiarismDetails');
-            const chevron = document.getElementById('chevronPlagiarism');
-            
-            if (details.style.display === 'none') {
-                details.style.display = 'block';
-                chevron.style.transform = 'rotate(180deg)';
-            } else {
-                details.style.display = 'none';
-                chevron.style.transform = 'rotate(0deg)';
-            }
-        }
-
-        // Toggle accordion sections
-        function toggleAccordion(accordionId) {
-            const content = document.getElementById(accordionId);
-            const icon = document.getElementById(accordionId + '-icon');
-            
-            if (content.style.maxHeight === '0px' || content.style.maxHeight === '') {
-                content.style.maxHeight = content.scrollHeight + 'px';
-                icon.style.transform = 'rotate(180deg)';
-            } else {
-                content.style.maxHeight = '0px';
-                icon.style.transform = 'rotate(0deg)';
-            }
-        }
-    </script>
 </body>
 </html>

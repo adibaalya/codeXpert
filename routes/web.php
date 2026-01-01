@@ -103,10 +103,6 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
         // Get current user's total XP from database
         $currentUserXP = $learner->totalPoint;
         
-        // Calculate user's rank based on totalPoint (descending order)
-        // Users with higher XP get a better rank
-        $currentUserRank = \App\Models\Learner::where('totalPoint', '>', $currentUserXP)->count() + 1;
-        
         // Calculate weekly XP (Monday to Sunday)
         $startOfWeek = \Carbon\Carbon::now()->startOfWeek(\Carbon\Carbon::MONDAY);
         $endOfWeek = \Carbon\Carbon::now()->endOfWeek(\Carbon\Carbon::SUNDAY);
@@ -125,22 +121,18 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
             ->orderBy('username', 'asc')
             ->get();
         
-        // Assign ranks with tie handling
+        // Assign ranks with proper tie handling
         $leaderboardData = [];
-        $currentRank = 1;
+        $rank = 0; // Actual rank counter
         $previousXP = null;
-        $sameRankCount = 0;
+        $position = 0; // Sequential position counter
         
-        foreach ($allLearners as $index => $topLearner) {
-            // If XP is the same as previous, use the same rank
-            if ($previousXP !== null && $topLearner->totalPoint == $previousXP) {
-                $rank = $currentRank;
-                $sameRankCount++;
-            } else {
-                // New XP value, calculate new rank
-                $rank = $index + 1;
-                $currentRank = $rank;
-                $sameRankCount = 0;
+        foreach ($allLearners as $topLearner) {
+            $position++;
+            
+            // If XP is different from previous, increment rank by 1
+            if ($previousXP === null || $topLearner->totalPoint != $previousXP) {
+                $rank++; // Increment rank only when XP changes
             }
             
             $previousXP = $topLearner->totalPoint;
@@ -158,11 +150,26 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
                 'weeklyXP' => (int) round($weeklyXP)
             ];
             
-            // Stop after collecting 15 entries (but include all ties for rank 15)
-            if (count($leaderboardData) >= 15 && 
-                ($index + 1 >= count($allLearners) || $allLearners[$index + 1]->totalPoint != $previousXP)) {
+            // Stop after collecting 15 entries (but include all ties at position 15)
+            if (count($leaderboardData) >= 15) {
+                $nextIndex = array_search($topLearner, $allLearners->toArray()) + 1;
+                if ($nextIndex >= count($allLearners) || $allLearners[$nextIndex]->totalPoint != $previousXP) {
+                    break;
+                }
+            }
+        }
+        
+        // Calculate current user's rank with tie handling
+        $currentUserRank = 0;
+        $prevXP = null;
+        foreach ($allLearners as $l) {
+            if ($prevXP === null || $l->totalPoint != $prevXP) {
+                $currentUserRank++;
+            }
+            if ($l->learner_ID === $learner->learner_ID) {
                 break;
             }
+            $prevXP = $l->totalPoint;
         }
         
         return view('learner.leaderboard', compact('learner', 'currentUserRank', 'currentUserXP', 'currentUserWeeklyXP', 'leaderboardData'));
@@ -172,113 +179,7 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
     Route::get('/hackathon', [LearnerDashboardController::class, 'hackathon'])->name('learner.hackathon');
     
     // Profile (placeholder routes - you'll need to implement these)
-    Route::get('/profile', function() {
-        $learner = auth()->guard('learner')->user();
-        
-        // Use Quadratic Curve leveling system
-        $levelProgress = $learner->getLevelProgress();
-        
-        // Calculate global rank
-        $globalRank = \App\Models\Learner::where('totalPoint', '>', $learner->totalPoint)->count() + 1;
-        
-        // Get member since date
-        $memberSince = \Carbon\Carbon::parse($learner->created_at)->format('F Y');
-        
-        // Get proficiencies
-        $proficiencies = \App\Models\UserProficiency::where('learner_ID', $learner->learner_ID)->get();
-        
-        // Calculate statistics based on attempts
-        // 1. Challenges Completed = total number of attempts (every attempt counts)
-        $challengesCompleted = \DB::table('attempts')
-            ->where('learner_ID', $learner->learner_ID)
-            ->count();
-        
-        // 2. Success Rate = (passed attempts / total attempts) * 100
-        // Consider an attempt "passed" if accuracyScore >= 5
-        $passedAttempts = \DB::table('attempts')
-            ->where('learner_ID', $learner->learner_ID)
-            ->where('accuracyScore', '>=', 5)
-            ->count();
-        
-        $successRate = $challengesCompleted > 0 ? round(($passedAttempts / $challengesCompleted) * 100) : 0;
-        
-        // Calculate total coding time (estimate: 15 minutes per attempt)
-        $totalMinutes = $challengesCompleted * 15;
-        $hours = floor($totalMinutes / 60);
-        $minutes = $totalMinutes % 60;
-        $totalTimeCoding = "{$hours}h {$minutes}m";
-        
-        // Prepare learner object with additional data using Quadratic Curve
-        $learner->currentLevel = $levelProgress['current_level'];
-        $learner->xpPoints = $levelProgress['current_xp'];
-        $learner->nextLevelXP = $levelProgress['xp_for_next_level'];
-        $learner->xpProgress = $levelProgress['xp_progress'];
-        $learner->xpGap = $levelProgress['xp_gap'];
-        $learner->levelPercentage = $levelProgress['percentage'];
-        $learner->globalRank = $globalRank;
-        $learner->memberSince = $memberSince;
-        $learner->challengesCompleted = $challengesCompleted;
-        $learner->successRate = $successRate;
-        $learner->totalTimeCoding = $totalTimeCoding;
-        
-        // Format proficiencies for display - XP-based progress
-        $proficiencies = $proficiencies->map(function($prof) use ($learner) {
-            // XP thresholds for language proficiency levels
-            $maxXP = 100; // Max XP to consider for progress bar (100%)
-            
-            // Current XP for this language
-            $currentXP = $prof->XP;
-            
-            // Calculate percentage based on XP (0-100%)
-            $percentage = min(round(($currentXP / $maxXP) * 100), 100);
-            
-            // Count actual questions solved for display
-            $solvedProblems = \DB::table('attempts')
-                ->join('questions', 'attempts.question_ID', '=', 'questions.question_ID')
-                ->where('attempts.learner_ID', $learner->learner_ID)
-                ->where('questions.language', $prof->language)
-                ->where('attempts.accuracyScore', '>', 0) // Any XP earned
-                ->distinct('attempts.question_ID')
-                ->count('attempts.question_ID');
-            
-            // Count total available questions for this language
-            $totalProblems = \DB::table('questions')
-                ->where('language', $prof->language)
-                ->where('status', 'Approved')
-                ->where('questionCategory', 'learnerPractice')
-                ->count();
-            
-            // If no questions available, show 0/150 as fallback
-            if ($totalProblems == 0) {
-                $totalProblems = 150;
-            }
-            
-            // Determine level based on XP
-            if ($prof->XP < 30) {
-                $level = 'Beginner';
-            } elseif ($prof->XP < 70) {
-                $level = 'Intermediate';
-            } else {
-                $level = 'Advanced';
-            }
-            
-            return [
-                'language' => $prof->language,
-                'level' => $level,
-                'XP' => $currentXP,
-                'maxXP' => $maxXP,
-                'percentage' => $percentage,
-                'solved' => $solvedProblems,
-                'total' => $totalProblems,
-                'xp' => $prof->XP
-            ];
-        });
-        
-        // Also store on learner object for backward compatibility
-        $learner->proficiencies = $proficiencies;
-        
-        return view('learner.profile', compact('learner', 'proficiencies'));
-    })->name('learner.profile');
+    Route::get('/profile', [LearnerDashboardController::class, 'profile'])->name('learner.profile');
     
     // Edit Profile
     Route::get('/profile/edit', function() {

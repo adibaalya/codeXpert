@@ -8,12 +8,13 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="{{ asset('js/navBar.js') }}"></script>
+    <script src="{{ asset('js/reviewer/competency.js') }}" defer></script>
     @include('layouts.app')
     @include('layouts.competencyCSS')
     @include('layouts.navCSS')
 </head>
 <body>
-    <!-- Header -->
     <div class="header">
         <div class="logo-container">
             <img class="logo" src="{{ asset('assets/images/codeXpert.png') }}" alt="CodeXpert Logo">
@@ -35,14 +36,21 @@
                     <div class="user-role">Reviewer</div>
                 </div>
                 <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
-                    {{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 0, 1)) }}{{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 1, 1) ?? '') }}
+                    @if($reviewer->profile_photo)
+                        <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                    @else
+                        {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                    @endif
                 </div>
                 
-                <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
                     <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
-                            {{ strtoupper(substr(Auth::guard('reviewer')->user()->username, 0, 2)) }}
+                            @if($reviewer->profile_photo)
+                                <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                            @else
+                                {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                            @endif
                         </div>
                         <div>
                             <div class="user-dropdown-name">{{ Auth::guard('reviewer')->user()->username }}</div>
@@ -92,6 +100,7 @@
     <div class="container">
         <h1 class="title">Choose Your Expertise</h1>
         <p class="subtitle">Select the programming language you want to be tested on</p>
+        
 
         <form action="{{ route('reviewer.competency.start') }}" method="POST">
             @csrf
@@ -119,9 +128,9 @@
                             </div>
                             <div class="question-counts">
                                 <div style="font-size: 11px; color: #666; margin-top: 8px;">
-                                    MCQ: {{ $lang['questionCounts']['mcq'] }}/4 | 
-                                    Evaluation: {{ $lang['questionCounts']['evaluation'] }}/2 | 
-                                    Code: {{ $lang['questionCounts']['codeSolution'] }}/2
+                                    MCQ: {{ $lang['questionCounts']['mcq'] }}/3 | 
+                                    Evaluation: {{ $lang['questionCounts']['evaluation'] }}/3 | 
+                                    Code: {{ $lang['questionCounts']['codeSolution'] }}/1
                                 </div>
                             </div>
                         @endif
@@ -140,7 +149,8 @@
                     Test Duration: 45 minutes • Passing Score: 50%
                 </div>
                 <div class="info-text">
-                    The competency test evaluates your expertise to become a CodeXpert Reviewer
+                    The competency test evaluates your expertise to become a CodeXpert Reviewer.
+                    
                 </div>
                 <ul class="info-list">
                     <li><strong>Score ≥90%:</strong> Review all levels (Beginner, Intermediate, Advanced)</li>
@@ -154,58 +164,5 @@
             </button>
         </form>
     </div>
-
-    <script>
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
-
-        document.querySelectorAll('.language-card').forEach(card => {
-            const hoverBg = card.getAttribute('data-hover-bg');
-            const defaultBg = card.getAttribute('data-default-bg');
-            
-            // Hover effects
-            card.addEventListener('mouseenter', function() {
-                if (!this.classList.contains('selected') && this.getAttribute('data-is-sufficient') === 'true') {
-                    this.style.background = hoverBg;
-                }
-            });
-            
-            card.addEventListener('mouseleave', function() {
-                if (!this.classList.contains('selected') && this.getAttribute('data-is-sufficient') === 'true') {
-                    this.style.background = defaultBg;
-                }
-            });
-            
-            // Click effect - make it stay in hover state
-            card.addEventListener('click', function() {
-                if (this.getAttribute('data-is-sufficient') === 'true') {
-                    // Remove selected class and reset background for all cards
-                    document.querySelectorAll('.language-card').forEach(c => {
-                        c.classList.remove('selected');
-                        c.style.borderColor = 'transparent';
-                        c.style.background = c.getAttribute('data-default-bg');
-                    });
-                    
-                    // Add selected class and apply hover background to clicked card
-                    this.classList.add('selected');
-                    this.style.background = hoverBg;
-                }
-            });
-        });
-    </script>
 </body>
 </html>

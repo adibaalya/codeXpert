@@ -6,6 +6,9 @@
     <title>Reviewer Dashboard - CodeXpert</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ asset('js/navBar.js') }}"></script>
+    <script src="{{ asset('js/weeklyChart.js') }}"></script>
+    <script src="{{ asset('js/reviewer/dashboard-timer.js') }}"></script>
     @include('layouts.dashboardCSS')
     @include('layouts.navCSS')
 
@@ -33,14 +36,22 @@
                     <div class="user-role">Reviewer</div>
                 </div>
                 <div class="user-avatar-reviewer" onclick="toggleUserMenu(event)">
-                    {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                    @if($reviewer->profile_photo)
+                        <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                    @else
+                        {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                    @endif
                 </div>
                 
                 <!-- User Dropdown Menu -->
                 <div class="user-dropdown" id="userDropdown">
                     <div class="user-dropdown-header-reviewer">
                         <div class="user-dropdown-avatar">
-                            {{ strtoupper(substr($reviewer->username, 0, 2)) }}
+                            @if($reviewer->profile_photo)
+                            <img src="{{ asset('storage/' . $reviewer->profile_photo) }}" alt="{{ $reviewer->username }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                            @else
+                                {{ strtoupper(substr($reviewer->username, 0, 1)) }}{{ strtoupper(substr($reviewer->username, 1, 1) ?? '') }}
+                            @endif
                         </div>
                         <div>
                             <div class="user-dropdown-name">{{ $reviewer->username }}</div>
@@ -130,20 +141,18 @@
                 <div class="stat-footer">All-time contributions</div>
             </div>
 
-            <!-- Accuracy Rate -->
+            <!-- Corrections Made -->
             <div class="stat-card">
                 <div class="stat-header">
-                    <div class="stat-label">Accuracy Rate</div>
-                    <span class="stat-badge purple">🔒</span>
+                    <div class="stat-label">Corrections Made</div>
+                    <span class="stat-badge purple">✏️</span>
                 </div>
-                <div class="stat-value">{{ $accuracyRate }}%</div>
+                <div class="stat-value">{{ $correctionsMade }}</div>
                 <div class="stat-footer">
-                    @if($accuracyRate >= 90)
-                        Excellent performance
-                    @elseif($accuracyRate >= 75)
-                        Good performance
+                    @if($correctionsMade > 0)
+                        Questions improved
                     @else
-                        Keep improving
+                        No corrections yet
                     @endif
                 </div>
             </div>
@@ -319,230 +328,13 @@
     </div>
 
     <script>
-        // Weekly Activity Chart
-        const ctx = document.getElementById('weeklyChart').getContext('2d');
-        const weeklyChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: {!! json_encode(collect($weeklyData)->pluck('day')) !!},
-                datasets: [{
-                    label: 'Reviews',
-                    data: {!! json_encode(collect($weeklyData)->pluck('count')) !!},
-                    backgroundColor: function(context) {
-                        const chart = context.chart;
-                        const {ctx, chartArea} = chart;
-                        if (!chartArea) return null;
-                        
-                        const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-                        gradient.addColorStop(0, '#7C3AED');
-                        gradient.addColorStop(1, '#A855F7');
-                        return gradient;
-                    },
-                    borderRadius: 8,
-                    borderSkipped: false,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        backgroundColor: '#1F2937',
-                        padding: 12,
-                        borderRadius: 8,
-                        titleColor: '#F9FAFB',
-                        bodyColor: '#F9FAFB',
-                        displayColors: false,
-                        callbacks: {
-                            label: function(context) {
-                                return 'Reviews: ' + context.parsed.y;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            display: false,
-                            drawBorder: false
-                        },
-                        ticks: {
-                            color: '#6B7280',
-                            font: {
-                                size: 12,
-                                weight: 600
-                            }
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false,
-                            drawBorder: false
-                        },
-                        ticks: {
-                            color: '#6B7280',
-                            font: {
-                                size: 12,
-                                weight: 600
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
-
-        // Timer Management System
-        let urgentTimers = [];
-        let recentTimers = [];
-        let timerInterval = null;
-
-        // Initialize timers when page loads
-        function initializeTimers() {
-            // Initialize Urgent Review Timers
-            document.querySelectorAll('.urgent-timer').forEach((element, index) => {
-                const seconds = parseInt(element.getAttribute('data-seconds')) || 0;
-                urgentTimers.push({
-                    element: element.querySelector('.timer-value'),
-                    startTime: Date.now() - (seconds * 1000),
-                    seconds: seconds
-                });
-            });
-
-            // Initialize Recent Activity Timers
-            document.querySelectorAll('.recent-timer').forEach((element, index) => {
-                const timeText = element.getAttribute('data-time');
-                const milliseconds = parseTimeToMilliseconds(timeText);
-                
-                recentTimers.push({
-                    element: element.querySelector('.timer-value'),
-                    startTime: Date.now() - milliseconds,
-                    originalText: timeText
-                });
-            });
-
-            // Start the timer update interval (update every second)
-            startTimerUpdates();
-        }
-
-        // Parse time text to milliseconds
-        function parseTimeToMilliseconds(timeText) {
-            if (!timeText) return 0;
-            
-            const secondsMatch = timeText.match(/(\d+)\s*second/i);
-            const minutesMatch = timeText.match(/(\d+)\s*minute/i);
-            const hoursMatch = timeText.match(/(\d+)\s*hour/i);
-            const daysMatch = timeText.match(/(\d+)\s*day/i);
-            
-            let total = 0;
-            if (secondsMatch) total += parseInt(secondsMatch[1]) * 1000;
-            if (minutesMatch) total += parseInt(minutesMatch[1]) * 60 * 1000;
-            if (hoursMatch) total += parseInt(hoursMatch[1]) * 60 * 60 * 1000;
-            if (daysMatch) total += parseInt(daysMatch[1]) * 24 * 60 * 60 * 1000;
-            
-            return total;
-        }
-
-        // Format elapsed time
-        function formatElapsedTime(milliseconds, format = 'full') {
-            const seconds = Math.floor(milliseconds / 1000);
-            const minutes = Math.floor(seconds / 60);
-            const hours = Math.floor(minutes / 60);
-            const days = Math.floor(hours / 24);
-
-            if (format === 'full') {
-                // Show only the most relevant unit for urgent reviews
-                if (days > 0) {
-                    return `${days}d`;
-                } else if (hours > 0) {
-                    return `${hours}h`;
-                } else if (minutes > 0) {
-                    return `${minutes}m`;
-                } else {
-                    return `${seconds}s`;
-                }
-            } else {
-                // Smart format for recent activity
-                if (days > 0) {
-                    return days === 1 ? '1 day ago' : `${days} days ago`;
-                } else if (hours > 0) {
-                    return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
-                } else if (minutes > 0) {
-                    return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
-                } else {
-                    return seconds <= 1 ? 'just now' : `${seconds} seconds ago`;
-                }
-            }
-        }
-
-        // Update all timers
-        function updateTimers() {
-            const now = Date.now();
-
-            // Update Urgent Review Timers
-            urgentTimers.forEach(timer => {
-                const elapsed = now - timer.startTime;
-                timer.element.textContent = formatElapsedTime(elapsed, 'full');
-            });
-
-            // Update Recent Activity Timers
-            recentTimers.forEach(timer => {
-                const elapsed = now - timer.startTime;
-                timer.element.textContent = formatElapsedTime(elapsed, 'smart');
-            });
-        }
-
-        // Start timer updates
-        function startTimerUpdates() {
-            // Clear any existing interval
-            if (timerInterval) {
-                clearInterval(timerInterval);
-            }
-
-            // Update immediately
-            updateTimers();
-
-            // Update every second
-            timerInterval = setInterval(updateTimers, 1000);
-        }
-
-        // Stop timer updates (useful for cleanup)
-        function stopTimerUpdates() {
-            if (timerInterval) {
-                clearInterval(timerInterval);
-                timerInterval = null;
-            }
-        }
-
-        // Initialize timers when DOM is ready
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeTimers();
-        });
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', function() {
-            stopTimerUpdates();
-        });
+        window.dashboardConfig = {
+            labels: {!! json_encode(collect($weeklyData)->pluck('day')) !!},
+            data: {!! json_encode(collect($weeklyData)->pluck('count')) !!},
+            // Orange Gradients
+            colorStart: ' #7C3AED',
+            colorEnd: ' #A855F7'
+        };
     </script>
 </body>
 </html>

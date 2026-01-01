@@ -7,46 +7,82 @@
 
     <title>CodeXpert - Login</title>
 
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
     @include('layouts.app')
     
+    <style>
+        /* Only added style for the error message */
+        .error-text {
+            color: #ef4444; /* Red color */
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none; /* Hidden by default */
+        }
+    </style>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const roleButtons = document.querySelectorAll('.role-btn');
             const roleInput = document.getElementById('role');
             const socialButtons = document.querySelectorAll('.btn-social');
+            const loginForm = document.getElementById('login-form');
+            const roleError = document.getElementById('role-error');
             
             roleButtons.forEach(button => {
                 button.addEventListener('click', function() {
-                    // 1. Remove 'active' from all buttons
-                    roleButtons.forEach(btn => btn.classList.remove('active'));
+                    // 1. Remove BOTH potential active classes from all buttons
+                    roleButtons.forEach(btn => {
+                        btn.classList.remove('active');
+                        btn.classList.remove('role-btn-active');
+                    });
                     
-                    // 2. Add 'active' to clicked button
+                    // 2. Add BOTH classes to the clicked button to ensure color shows
                     this.classList.add('active');
+                    this.classList.add('role-btn-active');
                     
                     // 3. Update hidden input
                     const role = this.getAttribute('data-role');
                     if (roleInput) {
                         roleInput.value = role;
                     }
+
+                    // 4. Hide error message if it is currently showing
+                    if(roleError) {
+                        roleError.style.display = 'none';
+                    }
                     
-                    // 4. Update social URL params
+                    // 5. Update social URL params
                     updateSocialButtonUrls(role);
                 });
             });
+
+            // Form Submit Validation
+            if(loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    // If the hidden input is empty, stop the form
+                    if (!roleInput.value) {
+                        e.preventDefault(); 
+                        if(roleError) {
+                            roleError.style.display = 'block'; // Show error
+                        }
+                    }
+                });
+            }
             
             function updateSocialButtonUrls(role) {
                 socialButtons.forEach(button => {
                     const currentUrl = button.getAttribute('href');
                     const url = new URL(currentUrl, window.location.origin);
-                    url.searchParams.set('role', role);
+                    if(role) {
+                        url.searchParams.set('role', role);
+                    }
                     button.setAttribute('href', url.toString());
                 });
             }
             
-            updateSocialButtonUrls('learner');
+            // Clear social URLs initially
+            updateSocialButtonUrls('');
         });
     </script>
 </head>
@@ -60,7 +96,6 @@
         </div>
     </div>
     <div class="main-container">
-        <!-- Left Hero Section -->
         <div class="hero-section">
             <div>
                 <div class="hero-content">
@@ -94,7 +129,6 @@
             </div>
         </div>
 
-        <!-- Right Form Section -->
         <div class="form-section">
             <div class="form-container">
                 <div class="form-logo">
@@ -104,19 +138,23 @@
                 <h1 class="welcome-title">Welcome Back!</h1>
                 <p class="welcome-subtitle">Sign in to continue your coding journey</p>
 
-                <form method="POST" action="{{ route('login') }}">
+                <form method="POST" action="{{ route('login') }}" id="login-form">
                     @csrf
                     
-                    <input type="hidden" name="role" id="role" value="learner">
+                    <input type="hidden" name="role" id="role" value="">
                     
                     <label class="role-label">Select Your Role</label>
                     <div class="role-buttons">
-                        <button type="button" class="role-btn role-btn-active" data-role="learner">
+                        <button type="button" class="role-btn" data-role="learner">
                             Learner
                         </button>
                         <button type="button" class="role-btn" data-role="reviewer">
                             Reviewer
                         </button>
+                    </div>
+
+                    <div id="role-error" class="error-text">
+                        Please select a role (Learner or Reviewer) to continue.
                     </div>
 
                     <div class="form-group">

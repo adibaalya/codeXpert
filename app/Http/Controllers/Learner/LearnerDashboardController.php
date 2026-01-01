@@ -37,6 +37,11 @@ class LearnerDashboardController extends Controller
         $currentStreak = $learner->getCurrentStreak();
         $achievements = $this->getAchievementsCount($learner);
         
+        // ============================================================
+        // ACHIEVEMENT SYSTEM: Get Earned Badges
+        // ============================================================
+        $badges = $learner->badges()->orderBy('earned_date', 'desc')->get();
+        
         // Get weekly practice data
         $weeklyData = $this->getWeeklyPracticeData($learner);
         
@@ -122,7 +127,8 @@ class LearnerDashboardController extends Controller
             'recentActivities',
             'proficiencies',
             'hackathons',
-            'leaderboardData'
+            'leaderboardData',
+            'badges'
         ));
     }
     
@@ -158,36 +164,8 @@ class LearnerDashboardController extends Controller
      */
     private function getAchievementsCount($learner)
     {
-        $count = 0;
-        
-        // Get current streak for achievements
-        $currentStreak = $learner->getCurrentStreak();
-        
-        // Achievement: First Steps (Complete 1 question)
-        if ($this->getQuestionsCompletedCount($learner) >= 1) $count++;
-        
-        // Achievement: Problem Solver (Complete 10 questions)
-        if ($this->getQuestionsCompletedCount($learner) >= 10) $count++;
-        
-        // Achievement: Code Master (Complete 50 questions)
-        if ($this->getQuestionsCompletedCount($learner) >= 50) $count++;
-        
-        // Achievement: Streak Keeper (7 day streak)
-        if ($currentStreak >= 7) $count++;
-        
-        // Achievement: Dedicated Learner (30 day streak)
-        if ($currentStreak >= 30) $count++;
-        
-        // Achievement: XP Hunter (Reach 1000 XP)
-        if ($learner->totalPoint >= 1000) $count++;
-        
-        // Achievement: Level Up (Reach level 5)
-        if ($this->calculateLevel($learner->totalPoint ?? 0) >= 5) $count++;
-        
-        // Achievement: Language Explorer (Master 3+ languages)
-        if ($learner->userProficiencies->count() >= 3) $count++;
-        
-        return $count;
+        // Return the actual count of badges earned from the database
+        return $learner->badges()->count();
     }
     
     private function getQuestionsCompletedCount($learner)
@@ -316,17 +294,19 @@ class LearnerDashboardController extends Controller
             ->orderBy('username', 'asc')
             ->get();
         
-        // Calculate positions with ties
+        // Calculate positions and ranks with ties
         $position = 1;
+        $rank = 1; // Actual rank for styling (1st, 2nd, 3rd)
         $previousXP = null;
         $actualIndex = 0;
         
-        $learnersWithPositions = $allLearners->map(function($learner) use (&$position, &$previousXP, &$actualIndex) {
+        $learnersWithPositions = $allLearners->map(function($learner) use (&$position, &$rank, &$previousXP, &$actualIndex) {
             $actualIndex++;
             
             // If XP is different from previous, update position to current index
             if ($previousXP !== null && $learner->totalPoint < $previousXP) {
                 $position = $actualIndex;
+                $rank++; // Increment rank when score changes
             }
             
             $previousXP = $learner->totalPoint;
@@ -334,6 +314,7 @@ class LearnerDashboardController extends Controller
             return [
                 'learner' => $learner,
                 'position' => $position,
+                'rank' => $rank, // This is the actual rank for styling
                 'xp' => $learner->totalPoint ?? 0
             ];
         });
@@ -353,17 +334,19 @@ class LearnerDashboardController extends Controller
         // Map to display format
         $topFive = $topPositions->map(function($item) use ($currentLearner) {
             $position = $item['position'];
+            $rank = $item['rank']; // Use rank instead of position for styling
             $learner = $item['learner'];
             $isCurrentUser = $learner->learner_ID === $currentLearner->learner_ID;
             
-            $title = match($position) {
+            // Use rank (not position) for title and class
+            $title = match($rank) {
                 1 => 'Champion',
                 2 => 'Runner-up',
                 3 => 'Third place',
                 default => 'Top 5'
             };
             
-            $rankClass = match($position) {
+            $rankClass = match($rank) {
                 1 => 'champion',
                 2 => 'runner-up',
                 3 => 'third-place',
@@ -374,7 +357,7 @@ class LearnerDashboardController extends Controller
                 'id' => $learner->learner_ID,
                 'username' => $learner->username,
                 'xp' => $learner->totalPoint ?? 0,
-                'position' => $position,
+                'position' => $rank, // Use rank for display, not actual position
                 'title' => $title,
                 'rank_class' => $rankClass,
                 'is_current_user' => $isCurrentUser
@@ -484,6 +467,76 @@ class LearnerDashboardController extends Controller
             'activeCount',
             'totalPrizes',
             'totalParticipants'
+        ));
+    }
+
+    public function profile()
+    {
+        $learner = Auth::guard('learner')->user();
+    
+        // 1. Global Rank
+        $globalRank = \App\Models\Learner::where('totalPoint', '>', $learner->totalPoint)->count() + 1;
+    
+        // 2. Level & XP
+        $levelProgress = $learner->getLevelProgress(); 
+        $currentXP = $learner->totalPoint;
+        $nextLevelXP = $levelProgress['xp_for_next_level']; 
+        $currentLevel = $levelProgress['current_level'];
+        $xpProgress = $levelProgress['percentage'];
+    
+        // 3. Badges
+        $earnedBadges = $learner->badges()->orderBy('earned_date', 'desc')->get();
+        
+        // 4. Statistics
+        $stats = [
+            'totalAttempts' => $learner->total_attempts ?? 0,
+            'solvedQuestions' => $learner->solved_questions ?? 0,
+            'currentStreak' => $learner->current_streak ?? 0,
+            'totalXP' => $currentXP,
+            'currentLevel' => $currentLevel,
+            'badgesEarned' => $earnedBadges->count(),
+        ];
+        
+        // Accuracy Calculation
+        $stats['accuracyRate'] = ($stats['totalAttempts'] > 0) 
+            ? round(($stats['solvedQuestions'] / $stats['totalAttempts']) * 100, 1) 
+            : 0;
+        
+        // 5. Proficiencies (ROBUST CALCULATION)
+        $proficiencies = $learner->userProficiencies->map(function($prof) use ($learner) {
+            
+            // Count any question in this language where the user has at least one attempt
+            // with a score > 0. This is often how dashboards count "progress".
+            // If you want strict 100%, change '> 0' to '>= 100' or '== 100'.
+            $solvedProblems = DB::table('attempts')
+                ->join('questions', 'attempts.question_ID', '=', 'questions.question_ID')
+                ->where('attempts.learner_ID', $learner->learner_ID)
+                ->where('questions.language', $prof->language)
+                // Try relaxing the condition to see if numbers appear
+                ->where('attempts.accuracyScore', '>', 0) 
+                ->distinct('attempts.question_ID')
+                ->count('attempts.question_ID');
+    
+            // Total Questions
+            $totalProblems = DB::table('questions')
+                ->where('language', $prof->language)
+                ->where('status', 'Approved')
+                ->where('questionCategory', 'learnerPractice')
+                ->count();
+            
+            return [
+                'language' => $prof->language,
+                'solved' => $solvedProblems,
+                'total' => $totalProblems ?: 10, // Default to 10 if 0
+                'level' => $prof->level ?? 'Beginner',
+                'XP' => $prof->XP ?? 0,
+            ];
+        });
+        
+        return view('learner.profile', compact(
+            'learner', 'earnedBadges', 'stats', 'levelProgress', 
+            'proficiencies', 'globalRank', 'currentXP', 
+            'nextLevelXP', 'currentLevel', 'xpProgress'
         ));
     }
 }

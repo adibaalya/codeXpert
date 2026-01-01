@@ -1091,7 +1091,7 @@
         box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
     }
 
-    /* Leaderboard Section */
+    /* --- Leaderboard List Layout --- */
     .leaderboard-list {
         display: flex;
         flex-direction: column;
@@ -1099,6 +1099,7 @@
         margin-top: 20px;
     }
 
+    /* --- Base Card Style (Rank 4+) --- */
     .leaderboard-item {
         display: flex;
         align-items: center;
@@ -1106,47 +1107,57 @@
         padding: 16px;
         border-radius: 12px;
         transition: all 0.3s ease;
-        border: 2px solid transparent;
+        
+        /* Default Style for Rank 4, 5, etc. */
+        background: #FFFFFF; 
+        border: 1px solid #E5E7EB; /* Light Grey Border */
+        color: #000000; /* Force Black text base */
     }
 
+    /* --- Rank 1: Gold Theme --- */
     .leaderboard-item.champion {
-        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-        border-color: #FCD34D;
+        /* Soft Cream to Gold Gradient */
+        background: linear-gradient(to right, #FFFBEB, #FDE68A);
+        border: 2px solid #D97706; /* Strong Gold/Amber */
     }
 
+    /* --- Rank 2: Silver Theme --- */
     .leaderboard-item.runner-up {
-        background: linear-gradient(135deg, #E0E7FF 0%, #C7D2FE 100%);
-        border-color: #A5B4FC;
+        /* White to Cool Silver Gradient */
+        background: linear-gradient(to right, #F8FAFC, #E2E8F0);
+        border: 2px solid #94A3B8; /* Metallic Silver */
     }
 
+    /* --- Rank 3: Bronze Theme --- */
     .leaderboard-item.third-place {
-        background: linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%);
-        border-color: #FDBA74;
+        /* Soft Mist to Apricot/Bronze Gradient */
+        background: linear-gradient(to right, #FFF7ED, #FFEDD5);
+        border: 2px solid #EA580C; /* Deep Bronze/Orange */
     }
 
+    /* --- Current User Highlight (If not top 3) --- */
     .leaderboard-item.current-user {
         background: linear-gradient(135deg, #FFE4E6 0%, #FECDD3 100%);
-        border-color: #FCA5A5;
+        border: 2px solid #F43F5E; /* Rose/Red Border */
     }
 
+    /* --- Hover Effects --- */
     .leaderboard-item:hover {
         transform: translateX(4px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     }
 
+    /* --- Active User Highlight (Your existing logic) --- */
     .leaderboard-item.highlighted-user {
         transform: translateY(-4px) scale(1.02);
-        box-shadow: 0 8px 24px rgba(255, 107, 53, 0.25);
-        border: 3px solid #FF6B35;
-        position: relative;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        /* Note: If you want the gold/silver border to stay, remove the line below. 
+        If you want a specific "Active" border color, keep it: */
+        border: 2px solid #F43F5E; 
         z-index: 10;
     }
 
-    .leaderboard-item.highlighted-user:hover {
-        transform: translateY(-6px) scale(1.02);
-        box-shadow: 0 12px 32px rgba(255, 107, 53, 0.35);
-    }
-
+    /* --- Rank Number Badges (The small boxes) --- */
     .leaderboard-rank {
         width: 44px;
         height: 44px;
@@ -1157,29 +1168,45 @@
         font-size: 18px;
         font-weight: 800;
         flex-shrink: 0;
-        color: white;
+        /* Default Grey for ranks > 3 */
+        background: #F3F4F6;
+        color: #374151;
+        border: 1px solid #E5E7EB;
     }
 
-    .leaderboard-rank.rank-1 {
-        background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+    /* Badge: Gold (for champion rank - could be position 1 or tied) */
+    .leaderboard-item.champion .leaderboard-rank {
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
         box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+        color: white;
+        border: none;
     }
 
-    .leaderboard-rank.rank-2 {
-        background: linear-gradient(135deg, #6366F1 0%, #818CF8 100%);
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    /* Badge: Silver (for runner-up rank - could be position 2 or tied) */
+    .leaderboard-item.runner-up .leaderboard-rank {
+        background: linear-gradient(135deg, #94A3B8 0%, #475569 100%);
+        box-shadow: 0 4px 12px rgba(148, 163, 184, 0.4);
+        color: white;
+        border: none;
     }
 
-    .leaderboard-rank.rank-3 {
-        background: linear-gradient(135deg, #F97316 0%, #FB923C 100%);
+    /* Badge: Bronze (for third-place rank - could be position 3, 4, or more if there were ties) */
+    .leaderboard-item.third-place .leaderboard-rank {
+        background: linear-gradient(135deg, #F97316 0%, #C2410C 100%);
         box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+        color: white;
+        border: none;
     }
 
-    .leaderboard-rank.rank-current {
-        background: linear-gradient(135deg, #FF6B35 0%, #FFB83D 100%);
-        box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+    /* Badge: Current User (when highlighted and not in top 3) */
+    .leaderboard-item.current-user:not(.champion):not(.runner-up):not(.third-place) .leaderboard-rank {
+        background: linear-gradient(135deg, #F43F5E 0%, #E11D48 100%);
+        box-shadow: 0 4px 12px rgba(244, 63, 94, 0.4);
+        color: white;
+        border: none;
     }
 
+    /* --- Text Styling --- */
     .leaderboard-info {
         flex: 1;
     }
@@ -1187,20 +1214,19 @@
     .leaderboard-name {
         font-size: 16px;
         font-weight: 700;
-        color: #1F2937;
+        color: #000000; /* PURE BLACK */
         margin-bottom: 4px;
     }
 
     .leaderboard-title {
         font-size: 13px;
-        color: #6B7280;
+        color: #374151; /* Dark Grey (almost black) for subtitle */
         font-weight: 500;
     }
 
-    .leaderboard-trending {
-        display: flex;
-        align-items: center;
-        gap: 8px;
+    .leaderboard-xp .xp-value {
+        font-weight: 700;
+        color: #000000; /* Black XP count */
     }
 
     .trending-up {

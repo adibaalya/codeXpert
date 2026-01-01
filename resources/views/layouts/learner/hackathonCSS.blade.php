@@ -1,4 +1,22 @@
 <style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: 'Inter', sans-serif;
+        background: #FFF9F9;
+        min-height: 100vh;
+    }
+
+    .main-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 40px 32px;
+    }
+    
     .page-header {
         margin-bottom: 12px;
         justify-content: center;

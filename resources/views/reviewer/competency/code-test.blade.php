@@ -8,9 +8,9 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="{{ asset('js/reviewer/competency.js') }}"></script>
     @include('layouts.app')
     @include('layouts.competencyCSS')
-    @include('layouts.navCSS')
 </head>
 <body class="code-test-body-reviewer">
 
@@ -278,459 +278,53 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
     
     <script>
-        let editor;
-        const language = "{{ $question->language ?? 'Java' }}";
-
-        // Language mappings for Monaco Editor
-        const languageMap = {
-            'Java': 'java',
-            'Python': 'python',
-            'JavaScript': 'javascript',
-            'C++': 'cpp',
-            'C#': 'csharp',
-            'PHP': 'php',
-            'Ruby': 'ruby',
-            'Go': 'go',
-            'C': 'c'
+        window.competencyCodeConfig = {
+            questionId: "{{ $question->question_ID }}",
+            language: "{{ $question->language ?? 'Java' }}",
+            remainingSeconds: {{ $remainingSeconds ?? 2700 }},
+            csrfToken: document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            routes: {
+                run: "{{ route('reviewer.competency.code.run') }}"
+            }
         };
 
-        // Get previous solution if exists
+        // 2. Initialize Monaco (Must stay in Blade due to require.config scope)
+        let editor; 
         const previousSolution = @json(session('code_solutions.' . $question->question_ID . '.solution', ''));
+        const languageMap = { 'Java': 'java', 'Python': 'python', 'JavaScript': 'javascript', 'C++': 'cpp', 'C#': 'csharp', 'PHP': 'php', 'C': 'c' };
 
-        // Initialize Monaco Editor
         require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
         
         require(['vs/editor/editor.main'], function() {
-            const monacoLanguage = languageMap[language] || 'plaintext';
-            
-            // Get template from CodeTemplateService
+            const monacoLanguage = languageMap["{{ $question->language ?? 'Java' }}"] || 'plaintext';
+            // Access template service directly via Blade
             const codeTemplate = @json(app('App\Services\CodeTemplateService')->generateTemplate($question->language ?? 'Python'));
-            const initialCode = previousSolution || codeTemplate;
             
-            editor = monaco.editor.create(document.getElementById('monacoEditor'), {
-                value: initialCode,
+            // Assign to window so external JS can access it
+            window.editor = monaco.editor.create(document.getElementById('monacoEditor'), {
+                value: previousSolution || codeTemplate,
                 language: monacoLanguage,
                 theme: 'vs-dark',
                 automaticLayout: true,
                 fontSize: 14,
                 minimap: { enabled: true },
                 scrollBeyondLastLine: false,
-                lineNumbers: 'on',
-                roundedSelection: false,
-                readOnly: false,
-                cursorStyle: 'line',
-                wordWrap: 'on',
-                // Enhanced formatting options
-                tabSize: 4,
-                insertSpaces: true,
-                detectIndentation: true,
-                formatOnPaste: true,
-                formatOnType: true,
-                autoIndent: 'full',
-                trimAutoWhitespace: true,
-                bracketPairColorization: {
-                    enabled: true
-                },
-                guides: {
-                    indentation: true,
-                    bracketPairs: true
-                },
-                suggest: {
-                    snippetsPreventQuickSuggestions: false
-                }
+                tabSize: 4
             });
 
-            // Add keyboard shortcut for formatting (Shift+Alt+F or Cmd+K Cmd+F)
-            editor.addAction({
+            // Format document shortcut
+            window.editor.addAction({
                 id: 'format-document',
                 label: 'Format Document',
-                keybindings: [
-                    monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF
-                ],
-                run: function(ed) {
-                    ed.getAction('editor.action.formatDocument').run();
-                }
+                keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF],
+                run: function(ed) { ed.getAction('editor.action.formatDocument').run(); }
             });
-
-            // Format code on initial load if it exists
-            if (previousSolution) {
-                setTimeout(() => {
-                    editor.getAction('editor.action.formatDocument').run();
-                }, 500);
-            }
         });
 
-        // Timer countdown - using remaining seconds from server (continues from MCQ)
-        let timeLeft = {{ $remainingSeconds ?? 2700 }}; // Remaining time from server
-        
-        function updateTimer() {
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            document.getElementById('timer').textContent = 
-                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            
-            if (timeLeft <= 0) {
-                // Time's up, auto-submit the form
-                alert('Time is up! Your code will be submitted automatically.');
-                document.getElementById('codeForm').submit();
-            } else {
-                timeLeft--;
-            }
-        }
-        
-        // Update timer immediately and then every second
-        updateTimer();
-        setInterval(updateTimer, 1000);
-
-        // Submit code
-        function submitCode() {
-            const code = editor.getValue();
-            
-            if (!code || code.trim() === '' || code.trim() === '// Write your solution here...') {
-                alert('Please write your solution before submitting');
-                return;
-            }
-
-            // Set the solution in the hidden input
-            document.getElementById('codeSolution').value = code;
-
-            const submitBtn = document.getElementById('submitBtn');
-            const testingModal = document.getElementById('testingModal');
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span>Submitting...</span> <svg style="animation: spin 1s linear infinite;" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>';
-
-            // Show the loading modal
-            testingModal.style.display = 'flex';
-
-            // Submit the form
-            document.getElementById('codeForm').submit();
-        }
-
-        // Run code
-        function runCode() {
-            console.log('=== runCode function called ===');
-            
-            const code = editor.getValue();
-            console.log('Code length:', code ? code.length : 0);
-            
-            if (!code || code.trim() === '' || code.trim() === '// Write your solution here...') {
-                alert('Please write your solution before running');
-                return;
-            }
-
-            const runBtn = document.getElementById('runBtn');
-            const outputSection = document.getElementById('outputSection');
-            const outputContent = document.getElementById('outputContent');
-            
-            console.log('Elements found:', {
-                runBtn: !!runBtn,
-                outputSection: !!outputSection,
-                outputContent: !!outputContent
-            });
-            
-            // Disable run button and show loading state
-            runBtn.disabled = true;
-            runBtn.innerHTML = `
-                <svg style="animation: spin 1s linear infinite;" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-                Running...
-            `;
-            
-            // Show output section with loading message
-            outputSection.style.display = 'block';
-            outputContent.textContent = 'Running your code against all test cases...\n\nPlease wait...';
-            
-            console.log('Making fetch request to:', '{{ route("reviewer.competency.code.run") }}');
-            console.log('Question ID:', '{{ $question->question_ID }}');
-
-            // Make AJAX request to run code
-            fetch('{{ route("reviewer.competency.code.run") }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify({
-                    solution: code,
-                    question_id: '{{ $question->question_ID }}'
-                })
-            })
-            .then(response => {
-                console.log('✓ Fetch successful! Response status:', response.status);
-                console.log('Response OK:', response.ok);
-                console.log('Response type:', response.type);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                return response.text();
-            })
-            .then(text => {
-                console.log('✓ Response text received, length:', text.length);
-                console.log('First 200 chars:', text.substring(0, 200));
-                
-                // Try to parse as JSON
-                let data;
-                try {
-                    data = JSON.parse(text);
-                    console.log('✓ Parsed JSON successfully:', data);
-                } catch (e) {
-                    console.error('✗ Failed to parse JSON:', e);
-                    outputContent.textContent = '❌ Server returned invalid JSON:\n\n' + text;
-                    return;
-                }
-                
-                if (data.success) {
-                    console.log('✓ Execution successful!');
-                    console.log('Test results:', data.testResults);
-                    
-                    // Enable submit button after successful run
-                    const submitBtn = document.getElementById('submitBtn');
-                    submitBtn.disabled = false;
-                    submitBtn.style.opacity = '1';
-                    submitBtn.style.cursor = 'pointer';
-                    
-                    // Update validation message to show code was run
-                    const validationText = document.getElementById('validationText');
-                    if (data.allPassed) {
-                        validationText.innerHTML = '✓ All tests passed! Ready to submit.';
-                        validationText.style.color = '#10B981';
-                    } else {
-                        validationText.innerHTML = `⚠️ ${data.passedTests}/${data.totalTests} tests passed. You can still submit.`;
-                        validationText.style.color = '#F59E0B';
-                    }
-                    
-                    // Build LeetCode-style tabbed output interface
-                    let output = '';
-                    
-                    // Header with overall status
-                    const allPassed = data.allPassed || false;
-                    const statusColor = allPassed ? '#10B981' : '#EF4444';
-                    const statusIcon = allPassed ? '✓' : '✗';
-                    const statusText = allPassed ? 'Accepted' : 'Failed';
-                    
-                    output += `<div style="background: #252526; padding: 12px 20px; border-bottom: 1px solid #3e3e3e; display: flex; align-items: center; gap: 10px;">`;
-                    output += `<span style="color: ${statusColor}; font-weight: 700; font-size: 14px;">${statusIcon} ${statusText}</span>`;
-                    output += `<span style="color: #666; font-size: 12px;">${data.passedTests}/${data.totalTests} test cases passed</span>`;
-                    output += `</div>`;
-                    
-                    // Test case tabs
-                    output += `<div style="background: #1e1e1e; padding: 15px 20px; border-bottom: 1px solid #3e3e3e;">`;
-                    output += `<div style="display: flex; gap: 12px; flex-wrap: wrap;">`;
-                    
-                    if (data.testResults && Array.isArray(data.testResults)) {
-                        data.testResults.forEach((testResult, index) => {
-                            const isFirst = index === 0;
-                            const passed = testResult.passed || false;
-                            const tabColor = passed ? '#10B981' : '#EF4444';
-                            const tabIcon = passed ? '✓' : '✗';
-                            
-                            output += `<button onclick="showTestCase(${index}); return false;" id="tab-${index}" style="
-                                background: ${isFirst ? '#2d2d2d' : 'transparent'}; 
-                                border: none; 
-                                color: ${tabColor}; 
-                                padding: 8px 16px; 
-                                border-radius: 6px; 
-                                font-size: 13px; 
-                                font-weight: 600; 
-                                cursor: pointer; 
-                                display: flex; 
-                                align-items: center; 
-                                gap: 6px;
-                                transition: background 0.2s;
-                                font-family: 'Inter', sans-serif;">
-                                <span style="font-size: 12px;">${tabIcon}</span> Case ${testResult.test_number}
-                            </button>`;
-                        });
-                    }
-                    
-                    output += `</div></div>`;
-                    
-                    // Test case content area
-                    output += `<div style="background: #1e1e1e; padding: 20px; color: #d4d4d4; font-family: 'Courier New', monospace; font-size: 13px; max-height: 300px; overflow-y: auto;">`;
-                    
-                    if (data.testResults && Array.isArray(data.testResults)) {
-                        data.testResults.forEach((testResult, index) => {
-                            const isFirst = index === 0;
-                            const passed = testResult.passed || false;
-                            
-                            output += `<div id="case-${index}" style="display: ${isFirst ? 'block' : 'none'};">`;
-                            
-                            // Status badge
-                            const badgeColor = passed ? '#10B981' : '#EF4444';
-                            const badgeText = passed ? '✓ Accepted' : '✗ Wrong Answer';
-                            output += `<div style="margin-bottom: 20px; padding: 8px 12px; background: ${badgeColor}22; border-left: 3px solid ${badgeColor}; border-radius: 4px;">`;
-                            output += `<span style="color: ${badgeColor}; font-weight: 700; font-size: 13px;">${badgeText}</span>`;
-                            output += `</div>`;
-                            
-                            // Input section
-                            output += `<div style="margin-bottom: 20px;">`;
-                            output += `<div style="color: #888; font-size: 12px; margin-bottom: 8px; font-weight: 600;">Input</div>`;
-                            output += `<div style="background: #252526; padding: 12px 15px; border-radius: 6px; border-left: 3px solid #4C6EF5; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(testResult.input)}</div>`;
-                            output += `</div>`;
-                            
-                            // Output section
-                            output += `<div style="margin-bottom: 20px;">`;
-                            output += `<div style="color: #888; font-size: 12px; margin-bottom: 8px; font-weight: 600;">Your Output</div>`;
-                            const outputBorder = passed ? '#10B981' : '#EF4444';
-                            output += `<div style="background: #252526; padding: 12px 15px; border-radius: 6px; border-left: 3px solid ${outputBorder};">${escapeHtml(testResult.output)}</div>`;
-                            output += `</div>`;
-                            
-                            // Expected output section
-                            if (testResult.expected) {
-                                output += `<div style="margin-bottom: 20px;">`;
-                                output += `<div style="color: #888; font-size: 12px; margin-bottom: 8px; font-weight: 600;">Expected Output</div>`;
-                                output += `<div style="background: #252526; padding: 12px 15px; border-radius: 6px; border-left: 3px solid #10B981;">${escapeHtml(testResult.expected)}</div>`;
-                                output += `</div>`;
-                            }
-                            
-                            output += `</div>`;
-                        });
-                    }
-                    
-                    output += `</div>`;
-                    
-                    outputContent.innerHTML = output;
-                } else {
-                    // Show error
-                    console.log('✗ Execution failed:', data.output);
-                    let errorOutput = '<div style="background: #252526; padding: 12px 20px; border-bottom: 1px solid #3e3e3e; display: flex; align-items: center; gap: 10px;">';
-                    errorOutput += '<span style="color: #EF4444; font-weight: 700; font-size: 14px;">❌ EXECUTION ERROR</span>';
-                    errorOutput += '</div>';
-                    errorOutput += '<div style="padding: 20px; color: #EF4444; font-family: \'Courier New\', monospace; font-size: 13px; white-space: pre-wrap;">';
-                    errorOutput += escapeHtml(data.output || 'Unknown error occurred');
-                    errorOutput += '</div>';
-                    outputContent.innerHTML = errorOutput;
-                }
-            })
-            .catch(error => {
-                console.error('✗✗✗ FETCH ERROR:', error);
-                console.error('Error stack:', error.stack);
-                outputContent.textContent = '❌ ERROR: Failed to execute code\n\n' + 
-                    'Error: ' + error.message + '\n\n' +
-                    'Check browser console (F12) for details.\n\n' +
-                    'Common causes:\n' +
-                    '- Not logged in (session expired)\n' +
-                    '- CSRF token invalid\n' +
-                    '- Server error (check Laravel logs)\n' +
-                    '- Network connectivity issue';
-            })
-            .finally(() => {
-                console.log('=== Request complete, re-enabling button ===');
-                
-                // Re-enable run button
-                runBtn.disabled = false;
-                runBtn.innerHTML = `
-                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
-                    </svg>
-                    Run Code
-                `;
-            });
-        }
-
-        // Close output section
-        function closeOutput() {
-            const outputSection = document.getElementById('outputSection');
-            outputSection.style.display = 'none';
-        }
-
-        // User menu toggle
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const dropdown = document.getElementById('userDropdown');
-            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-        }
-
-        document.addEventListener('click', function(event) {
-            const dropdown = document.getElementById('userDropdown');
-            if (dropdown && dropdown.style.display === 'block') {
-                dropdown.style.display = 'none';
-            }
-        });
-
-        // Add spin animation
+        // Add spin animation dynamically
         const style = document.createElement('style');
         style.textContent = '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
         document.head.appendChild(style);
-
-        // Prevent page navigation warnings
-        window.addEventListener('beforeunload', function(e) {
-            const code = editor.getValue();
-            if (code && code.trim() !== '' && code.trim() !== '// Write your solution here...') {
-                // Only warn if there's actual code written
-                return;
-            }
-        });
-
-        // Toggle hints section
-        function toggleHints() {
-            const hintsBox = document.getElementById('hintsBox');
-            const hintsButtonText = document.getElementById('hintsButtonText');
-            const chevronIcon = document.getElementById('chevronIcon');
-            
-            if (hintsBox.style.display === 'none') {
-                hintsBox.style.display = 'block';
-                hintsButtonText.textContent = 'Hide Hints';
-                chevronIcon.style.transform = 'rotate(180deg)';
-            } else {
-                hintsBox.style.display = 'none';
-                hintsButtonText.textContent = 'Show Hints';
-                chevronIcon.style.transform = 'rotate(0deg)';
-            }
-        }
-
-        // Switch tabs in the left panel
-        function switchTab(tab) {
-            const problemTab = document.getElementById('problemTab');
-            const testcasesTab = document.getElementById('testcasesTab');
-            const problemButton = document.querySelector('.problem-tab:nth-child(1)');
-            const testcasesButton = document.querySelector('.problem-tab:nth-child(2)');
-
-            if (tab === 'problem') {
-                problemTab.style.display = 'block';
-                testcasesTab.style.display = 'none';
-                problemButton.classList.add('active');
-                testcasesButton.classList.remove('active');
-            } else if (tab === 'testcases') {
-                problemTab.style.display = 'none';
-                testcasesTab.style.display = 'block';
-                problemButton.classList.remove('active');
-                testcasesButton.classList.add('active');
-            }
-        }
-
-        // Escape HTML for safe rendering
-        function escapeHtml(unsafe) {
-            return unsafe
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
-
-        // Show specific test case - prevent form submission
-        function showTestCase(index) {
-            // Prevent default button behavior
-            event.preventDefault();
-            event.stopPropagation();
-            
-            const testCases = document.querySelectorAll('[id^="case-"]');
-            const tabs = document.querySelectorAll('[id^="tab-"]');
-            
-            testCases.forEach((testCase, i) => {
-                testCase.style.display = i === index ? 'block' : 'none';
-            });
-            
-            tabs.forEach((tab, i) => {
-                tab.style.background = i === index ? '#2d2d2d' : 'transparent';
-            });
-            
-            return false; // Extra safety to prevent form submission
-        }
     </script>
 
 </body>

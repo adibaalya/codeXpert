@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile - CodeXpert</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="{{ asset('js/navBar.js') }}"></script>
     @include('layouts.profileCSS')
-    @include('layouts.dashboardCSS')
     @include('layouts.navCSS')
+    
 </head>
 <body>
     <!-- Header -->
@@ -106,11 +107,6 @@
             <h2 class="profile-name">{{ $learner->username }}</h2>
             <p class="profile-email">{{ $learner->email }}</p>
             
-            @if($learner->currentLevel ?? 0 >= 12)
-            <div class="verified-badge">
-                <span> LEVEL {{ $learner->currentLevel ?? 12 }}</span>
-            </div>
-            @endif
             
             <div class="profile-info-section">
                 <div class="profile-info-item">
@@ -119,7 +115,7 @@
                     </svg>
                     <div class="info-content">
                         <div class="info-label">Global Rank</div>
-                        <div class="info-value">#{{ $learner->globalRank ?? 35 }}</div>
+                        <div class="info-value">#{{ $globalRank }}</div>
                     </div>
                 </div>
                 
@@ -129,7 +125,7 @@
                     </svg>
                     <div class="info-content">
                         <div class="info-label">Member Since</div>
-                        <div class="info-value">{{ $learner->memberSince ?? 'January 2024' }}</div>
+                        <div class="info-value">{{ $learner->created_at->format('F Y') }}</div>
                     </div>
                 </div>
             </div>
@@ -153,11 +149,11 @@
                         <div style="background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(255, 167, 38) 100%); border-radius: 16px; padding: 20px; color: white;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
                                 <div>
-                                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 2px;">Level {{ $learner->currentLevel ?? 12 }}</div>
-                                    <div style="font-size: 18px; font-weight: 600;">{{ number_format($learner->xpPoints ?? 2847) }} / {{ number_format($learner->nextLevelXP ?? 3000) }} XP</div>
+                                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 2px;">Level {{ $levelProgress['current_level'] }}</div>
+                                    <div style="font-size: 18px; font-weight: 600;">{{ number_format($currentXP) }} / {{ number_format($nextLevelXP) }} XP</div>
                                 </div>
                                 <div style="width: 50px; height: 50px; background: rgba(255, 255, 255, 0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700;">
-                                    {{ $learner->currentLevel ?? 12 }}
+                                    {{ $levelProgress['current_level'] }}
                                 </div>
                             </div>
                             
@@ -168,14 +164,14 @@
                             </div>
                             
                             <div style="font-size: 13px; opacity: 0.9;">
-                                {{ number_format(($learner->nextLevelXP ?? 3000) - ($learner->xpPoints ?? 2847)) }} XP until Level {{ ($learner->currentLevel ?? 12) + 1 }}
+                                {{ number_format($nextLevelXP - $currentXP) }} XP until Level {{ $currentLevel + 1 }}
                             </div>
                         </div>
                     </div>
 
                     <!-- Language Proficiency Section -->
                     <div class="competency-section">
-                    <h2 class="stats-title">Level Progress</h2>
+                    <h2 class="stats-title">Language Proficiency</h2>
                     @forelse($proficiencies as $proficiency)
                         @php
                             // Calculate percentage based on questions solved / total questions
@@ -230,59 +226,60 @@
                             <p style="font-size: 14px; color: #9CA3AF;">Start your coding journey by selecting languages</p>
                         </div>
                     @endforelse
-                </div>
+                    </div>
 
                     <!-- Achievements Section -->
                     <div class="achievements-section">
-                        <h2 class="section-title">Achievements</h2>
+                        <h2 class="section-title">Achievements ({{ $earnedBadges->count() }})</h2>
+                        
+                        @php
+                            // Badge Configuration with icons and colors
+                            $badgeConfig = [
+                                // LEARNER BADGES
+                                'first_problem_solved' => ['icon' => 'fa-star', 'color' => 'orange', 'title' => 'First Problem Solved', 'description' => 'Completed your first challenge'],
+                                'beginner_solver' => ['icon' => 'fa-seedling', 'color' => 'green', 'title' => 'Beginner Solver', 'description' => 'Solved 10 coding problems'],
+                                'active_learner' => ['icon' => 'fa-rocket', 'color' => 'blue', 'title' => 'Active Learner', 'description' => 'Solved 25 coding problems'],
+                                'problem_solver' => ['icon' => 'fa-brain', 'color' => 'purple', 'title' => 'Problem Solver', 'description' => 'Solved 50 coding problems'],
+                                'consistent_learner' => ['icon' => 'fa-calendar-check', 'color' => 'green', 'title' => 'Consistent Learner', 'description' => '7 day coding streak'],
+                                'accuracy_improver' => ['icon' => 'fa-bullseye', 'color' => 'orange', 'title' => 'Accuracy Improver', 'description' => '80% accuracy over 20 attempts'],
+                                'language_confident' => ['icon' => 'fa-code', 'color' => 'blue', 'title' => 'Language Confident', 'description' => 'Solved 30 problems in one language'],
+                            ];
+                        @endphp
+                        
                         <div class="achievements-grid">
-                            <div class="achievement-card">
-                                <div class="achievement-icon orange">
-                                    <svg fill="currentColor" viewBox="0 0 20 20">
+                            @forelse($earnedBadges as $badge)
+                                @php
+                                    $config = $badgeConfig[$badge->badge_type] ?? [
+                                        'icon' => 'fa-trophy',
+                                        'color' => 'purple',
+                                        'title' => ucwords(str_replace('_', ' ', $badge->badge_type)),
+                                        'description' => 'Achievement unlocked'
+                                    ];
+                                @endphp
+                                
+                                <div class="achievement-card earned">
+                                    <div class="achievement-icon {{ $config['color'] }}">
+                                        <svg fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="achievement-content">
+                                        <h4>{{ $config['title'] }}</h4>
+                                        <p>{{ $config['description'] }}</p>
+                                        <small style="color: #9CA3AF; font-size: 12px; margin-top: 4px; display: block;">
+                                            Earned: {{ \Carbon\Carbon::parse($badge->earned_date)->format('M d, Y') }}
+                                        </small>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="no-achievements" style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
+                                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" style="margin: 0 auto 16px;">
                                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
                                     </svg>
+                                    <h4 style="font-size: 18px; font-weight: 600; color: #4B5563; margin-bottom: 8px;">No Achievements Yet</h4>
+                                    <p style="font-size: 14px; color: #9CA3AF;">Start solving problems to unlock achievements!</p>
                                 </div>
-                                <div class="achievement-content">
-                                    <h4>First Steps</h4>
-                                    <p>Completed your first challenge</p>
-                                </div>
-                            </div>
-                            
-                            <div class="achievement-card">
-                                <div class="achievement-icon blue">
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                                    </svg>
-                                </div>
-                                <div class="achievement-content">
-                                    <h4>Quick Learner</h4>
-                                    <p>Solved 10 challenges in one day</p>
-                                </div>
-                            </div>
-                            
-                            <div class="achievement-card">
-                                <div class="achievement-icon green">
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                                    </svg>
-                                </div>
-                                <div class="achievement-content">
-                                    <h4>Consistent Coder</h4>
-                                    <p>7 day coding streak</p>
-                                </div>
-                            </div>
-                            
-                            <div class="achievement-card">
-                                <div class="achievement-icon purple">
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
-                                    </svg>
-                                </div>
-                                <div class="achievement-content">
-                                    <h4>Century Club</h4>
-                                    <p>Completed 100+ challenges</p>
-                                </div>
-                            </div>
+                            @endforelse
                         </div>
                     </div>
                 </div>
@@ -294,39 +291,40 @@
                     <div class="stats-list-vertical">
                         <div class="stat-item-vertical">
                             <div class="stat-label">Challenges Completed</div>
-                            <div class="stat-value">{{ $learner->challengesCompleted ?? 127 }}</div>
+                            <div class="stat-value">{{ $stats['totalAttempts'] ?? 0 }}</div>
                         </div>
                         
                         <div class="stat-divider"></div>
                         
                         <div class="stat-item-vertical">
                             <div class="stat-label">Success Rate</div>
-                            <div class="stat-value">{{ $learner->successRate ?? 89 }}%</div>
+                            <div class="stat-value">{{ $stats['accuracyRate'] ?? 0 }}%</div>
                         </div>
-
+                        
+                        <div class="stat-divider"></div>
+                        
+                        <div class="stat-item-vertical">
+                            <div class="stat-label">Current Streak</div>
+                            <div class="stat-value">{{ $stats['currentStreak'] ?? 0 }} days</div>
+                        </div>
+                        
+                        <div class="stat-divider"></div>
+                        
+                        <div class="stat-item-vertical">
+                            <div class="stat-label">Total XP</div>
+                            <div class="stat-value">{{ number_format($stats['totalXP'] ?? 0) }}</div>
+                        </div>
+                        
+                        <div class="stat-divider"></div>
+                        
+                        <div class="stat-item-vertical">
+                            <div class="stat-label">Badges Earned</div>
+                            <div class="stat-value">{{ $stats['badgesEarned'] ?? 0 }}</div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <script>
-        // Toggle User Dropdown Menu
-        function toggleUserMenu(event) {
-            event.stopPropagation();
-            const userDropdown = document.getElementById('userDropdown');
-            userDropdown.classList.toggle('show');
-        }
-
-        // Close User Dropdown Menu when clicking outside
-        window.onclick = function(event) {
-            const userDropdown = document.getElementById('userDropdown');
-            if (!event.target.matches('.user-avatar')) {
-                if (userDropdown.classList.contains('show')) {
-                    userDropdown.classList.remove('show');
-                }
-            }
-        }
-    </script>
 </body>
 </html>

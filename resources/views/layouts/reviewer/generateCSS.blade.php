@@ -343,4 +343,139 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        /* ========== SUCCESS MODAL STYLES ========== */
+        .success-modal-container {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            padding: 48px 40px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: successModalSlideIn 0.4s ease-out;
+        }
+
+        @keyframes successModalSlideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .success-icon-circle {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 32px;
+            animation: successIconPulse 0.6s ease-out;
+        }
+
+        @keyframes successIconPulse {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .success-checkmark {
+            animation: checkmarkDraw 0.6s ease-out 0.2s both;
+        }
+
+        @keyframes checkmarkDraw {
+            from {
+                stroke-dasharray: 100;
+                stroke-dashoffset: 100;
+            }
+            to {
+                stroke-dasharray: 100;
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .success-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: #1F2937;
+            margin: 0 0 16px 0;
+            animation: fadeInUp 0.5s ease-out 0.3s both;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .success-message {
+            font-size: 16px;
+            color: #6B7280;
+            line-height: 1.6;
+            margin: 0 0 32px 0;
+            animation: fadeInUp 0.5s ease-out 0.4s both;
+        }
+
+        .success-score {
+            font-weight: 700;
+            color: #10B981;
+            font-size: 18px;
+        }
+
+        .btn-continue {
+            width: 100%;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #9333EA 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            animation: fadeInUp 0.5s ease-out 0.5s both;
+        }
+
+        .btn-continue:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.4);
+        }
+
+        .btn-continue:active {
+            transform: translateY(0);
+        }
     </style>
