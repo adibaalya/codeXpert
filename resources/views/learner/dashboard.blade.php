@@ -10,7 +10,6 @@
     @include('layouts.dashboardCSS')
     @include('layouts.navCSS')
     
-
 </head>
 <body>
     <!-- Header -->
@@ -197,7 +196,6 @@
                         <div class="weekly-total-label">Total This Week</div>
                         <div class="weekly-total-value">
                             {{ collect($weeklyData)->sum('count') }}
-                            <span class="trend-icon">📈</span>
                         </div>
                     </div>
                 </div>

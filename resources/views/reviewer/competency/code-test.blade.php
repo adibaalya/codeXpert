@@ -9,11 +9,9 @@
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="{{ asset('js/reviewer/competency.js') }}"></script>
-    @include('layouts.app')
-    @include('layouts.competencyCSS')
+    @include('layouts.codingCSS')
 </head>
 <body class="code-test-body-reviewer">
-
     <!-- Loading Modal for Testing -->
     <div id="testingModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
         <div style="background: white; padding: 40px 50px; border-radius: 16px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 500px;">

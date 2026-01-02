@@ -8,8 +8,7 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    @include('layouts.app')
-    @include('layouts.competencyCSS')
+    @include('layouts.codingCSS')
     @include('layouts.navCSS')
 </head>
 
@@ -287,5 +286,32 @@
     </script>
 
     <script src="{{ asset('js/learner/coding-editor.js') }}"></script>
+    
+    <script>
+        // Hide modal if page loaded with an error (redirect back scenario)
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('testingModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            
+            // Reset submit button state if there was an error
+            const submitBtn = document.getElementById('submitBtn');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Submit Solution <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+            }
+            
+            @if(session('error'))
+                // Show error in output section
+                const outputSection = document.getElementById('outputSection');
+                const outputContent = document.getElementById('outputContent');
+                if (outputSection && outputContent) {
+                    outputSection.style.display = 'block';
+                    outputContent.innerHTML = '<div style="background: #252526; padding: 12px 20px; border-bottom: 1px solid #3e3e3e;"><span style="color: #EF4444; font-weight: 700; font-size: 14px;">❌ SUBMISSION ERROR</span></div><div style="padding: 20px; color: #EF4444; font-family: \'Courier New\', monospace; font-size: 13px; white-space: pre-wrap;">{{ session('error') }}</div>';
+                }
+            @endif
+        });
+    </script>
 </body>
 </html>

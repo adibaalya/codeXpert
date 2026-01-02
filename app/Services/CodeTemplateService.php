@@ -28,7 +28,7 @@ class CodeTemplateService
 
             case 'python':
                 // Adds the indentation automatically after the colon
-                return "class Solution:\n    ";
+                return "\n";
 
             case 'c':
                 return "/**\n * Note: The returned array must be malloced, assume caller calls free().\n */\n";

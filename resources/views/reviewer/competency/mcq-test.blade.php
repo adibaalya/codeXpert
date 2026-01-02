@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="{{ asset('js/reviewer/competency.js') }}" defer></script>
     @include('layouts.app')
-    @include('layouts.competencyCSS')
+    @include('layouts.reviewer.competencyCSS')
 </head>
 <body class="mcq-test-body">
     <div class="test-header-wrapper" style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">

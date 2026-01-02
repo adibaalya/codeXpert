@@ -362,7 +362,6 @@ class CodeExecutionController extends Controller
             \DB::table('attempts')->insert([
                 'question_ID' => $question->question_ID,
                 'learner_ID' => $learner->learner_ID,
-                'testResult_ID' => null,
                 'submittedCode' => $code,
                 'plagiarismScore' => $plagiarismScore,
                 'accuracyScore' => $earnedXP,

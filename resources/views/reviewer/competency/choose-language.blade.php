@@ -11,7 +11,7 @@
     <script src="{{ asset('js/navBar.js') }}"></script>
     <script src="{{ asset('js/reviewer/competency.js') }}" defer></script>
     @include('layouts.app')
-    @include('layouts.competencyCSS')
+    @include('layouts.reviewer.competencyCSS')
     @include('layouts.navCSS')
 </head>
 <body>

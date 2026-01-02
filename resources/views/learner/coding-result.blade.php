@@ -11,7 +11,7 @@
     <script src="{{ asset('js/navBar.js') }}"></script>
     <script src="{{ asset('js/result.js') }}"></script>
     @include('layouts.navCSS')
-    @include('layouts.competencyCSS')
+    @include('layouts.resultCSS')
     
 </head>
 <body class="result-body">
@@ -355,6 +355,23 @@
             <!-- AI Feedback Section -->
             @if(isset($submission['ai_feedback']))
             <div style="margin-top: 30px;">
+                @if(isset($submission['ai_feedback']['rate_limited']) && $submission['ai_feedback']['rate_limited'])
+                <!-- Rate Limit Warning Banner -->
+                <div style="background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 2px solid #FBBF24;">
+                    <div style="display: flex; align-items: start; gap: 16px;">
+                        <svg width="32" height="32" fill="white" viewBox="0 0 20 20" style="flex-shrink: 0;">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                        <div style="flex: 1;">
+                            <h3 style="color: white; font-size: 18px; font-weight: 700; margin: 0 0 8px 0;">AI Feedback Temporarily Unavailable</h3>
+                            <p style="color: rgba(255,255,255,0.95); font-size: 14px; line-height: 1.6; margin: 0;">
+                                The Gemini API has reached its request limit. Your submission has been saved successfully, but AI-generated feedback cannot be generated at this time. Please check back later or contact support if this issue persists.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                @else
+                <!-- Normal AI Feedback Header -->
                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                         <svg width="28" height="28" fill="white" viewBox="0 0 20 20">
@@ -366,6 +383,7 @@
                         Personalized insights to help you improve. Click each section to expand.
                     </p>
                 </div>
+                @endif
 
                 <!-- Correctness Section (Collapsible) -->
                 @if(!empty($submission['ai_feedback']['correctness']))

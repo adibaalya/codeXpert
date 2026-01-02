@@ -79,6 +79,12 @@ class AICodeFeedbackService
                 'successful' => $response->successful()
             ]);
             
+            // Check for rate limit error (429 Too Many Requests)
+            if ($response->status() === 429) {
+                Log::warning('Gemini API rate limit exceeded');
+                return $this->getRateLimitFeedback();
+            }
+            
             if ($response->successful()) {
                 $responseData = $response->json();
                 $feedbackText = $responseData['candidates'][0]['content']['parts'][0]['text'] ?? '';
@@ -234,6 +240,20 @@ PROMPT;
             'style' => 'Consider using clear variable names, proper indentation, and adding comments to explain complex logic.',
             'errors' => 'Common issues include: boundary conditions, data type mismatches, and incorrect algorithm implementation. Review the test cases that failed.',
             'suggestions' => 'Practice similar problems, review the solution carefully, and test edge cases. Consider discussing your approach with peers or reviewing online resources for the topic.'
+        ];
+    }
+
+    /**
+     * Get rate limit feedback when API quota is exceeded
+     */
+    private function getRateLimitFeedback(): array
+    {
+        return [
+            'correctness' => 'Gemini API has too many requests. Unable to generate AI feedback at this time.',
+            'style' => 'Gemini API has too many requests. Unable to generate AI feedback at this time.',
+            'errors' => 'Gemini API has too many requests. Unable to generate AI feedback at this time.',
+            'suggestions' => 'Gemini API has too many requests. Please try again later or contact support.',
+            'rate_limited' => true  // Flag to indicate rate limiting
         ];
     }
 }

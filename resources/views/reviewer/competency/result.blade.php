@@ -11,7 +11,7 @@
     <script src="{{ asset('js/navBar.js') }}"></script>
     <script src="{{ asset('js/result.js') }}"></script>
     @include('layouts.navCSS')
-    @include('layouts.competencyCSS')
+    @include('layouts.resultCSS')
     
 </head>
 <body class="result-body-reviewer">
