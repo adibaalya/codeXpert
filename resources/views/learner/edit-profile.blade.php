@@ -176,7 +176,7 @@
                     <button type="button" class="btn-cancel" onclick="window.location.href='{{ route('learner.profile') }}'">
                         Cancel
                     </button>
-                    <button type="submit" class="btn-save-learner-learner">
+                    <button type="submit" class="btn-save-learner">
                         Save Changes
                     </button>
                 </div>

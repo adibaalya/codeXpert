@@ -159,7 +159,7 @@
                             
                             <div style="margin-bottom: 10px;">
                                 <div style="width: 100%; height: 12px; background: rgba(255, 255, 255, 0.3); border-radius: 12px; overflow: hidden;">
-                                    <div style="height: 100%; background: white; border-radius: 12px; width: {{ round((($learner->xpPoints ?? 2847) / ($learner->nextLevelXP ?? 3000)) * 100) }}%; transition: width 1s ease;"></div>
+                                    <div style="height: 100%; background: white; border-radius: 12px; width: {{ min($xpProgress, 100) }}%; transition: width 1s ease;"></div>
                                 </div>
                             </div>
                             

@@ -76,9 +76,9 @@ Route::middleware(['auth:learner'])->prefix('learner')->group(function () {
     Route::get('/coding/question/{questionId}/starter-code', [CodingQuestionController::class, 'getStarterCode'])->name('learner.coding.starter');
     
     // Code Execution Routes (for run and submit)
-    Route::post('/coding/run', [\App\Http\Controllers\CodeExecutionController::class, 'runCode'])->name('learner.coding.run');
-    Route::post('/coding/submit', [\App\Http\Controllers\CodeExecutionController::class, 'submitCode'])->name('learner.coding.submit');
-    Route::post('/coding/rate', [\App\Http\Controllers\CodeExecutionController::class, 'rateQuestion'])->name('learner.coding.rate');
+    Route::post('/coding/run', [\App\Http\Controllers\Learner\CodeExecutionController::class, 'runCode'])->name('learner.coding.run');
+    Route::post('/coding/submit', [\App\Http\Controllers\Learner\CodeExecutionController::class, 'submitCode'])->name('learner.coding.submit');
+    Route::post('/coding/rate', [\App\Http\Controllers\Learner\CodeExecutionController::class, 'rateQuestion'])->name('learner.coding.rate');
     Route::get('/coding/result', function() {
         $learner = auth()->guard('learner')->user();
         $submission = session('coding_submission');

@@ -7,7 +7,7 @@
     <title>Generate Questions with AI - CodeXpert</title>
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
     <script src="{{ asset('js/navBar.js') }}"></script>
-    <script src="{{ asset('js/reviewer/generate.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/reviewer/generate.js') }}?v={{ time() }}&bust={{ rand() }}"></script>
     @include('layouts.reviewer.generateCSS')
     @include('layouts.navCSS')
 </head>

@@ -556,9 +556,18 @@
         }
 
         .submit-test-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
+            opacity: 1 !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+            background: #9CA3AF !important;
+            box-shadow: none !important;
+            pointer-events: none;
+        }
+
+        .submit-test-btn:disabled:hover {
+            transform: none !important;
+            background: #9CA3AF !important;
+            box-shadow: none !important;
         }
 
         .submit-test-btn svg {

@@ -8,7 +8,12 @@ use Illuminate\Support\Facades\Log;
 class AIPlagiarismDetectionService
 {
     /**
-     * Analyze code against known AI-generated solutions using TF-IDF Vector Similarity
+     * Detection method: 'codebert' or 'tfidf'
+     */
+    private $detectionMethod = 'tfidf'; // Switched to TF-IDF to prevent timeouts
+
+    /**
+     * Analyze code against known AI-generated solutions using CodeBERT Semantic Similarity
      * 
      * @param string $code The student's submitted code
      * @param string $language Programming language used
@@ -47,8 +52,14 @@ class AIPlagiarismDetectionService
                 return $this->getFallbackResult();
             }
             
-            // Run Python similarity checker
-            $result = $this->runVectorSimilarityCheck($tempFile, $ghostDir);
+            // Run similarity check based on selected method
+            if ($this->detectionMethod === 'codebert') {
+                $result = $this->runCodeBERTSimilarityCheck($tempFile, $ghostDir);
+                $methodName = 'CodeBERT Semantic Similarity';
+            } else {
+                $result = $this->runVectorSimilarityCheck($tempFile, $ghostDir);
+                $methodName = 'TF-IDF Vector Similarity';
+            }
             
             // Clean up temporary file
             @unlink($tempFile);
@@ -69,12 +80,13 @@ class AIPlagiarismDetectionService
             $originalityScore = 100 - $similarityPercent;
             
             // Determine indicators based on originality (inverted)
-            $indicators = $this->getIndicators($similarityPercent, $matchedGhost);
+            $indicators = $this->getIndicators($similarityPercent, $matchedGhost, $methodName);
             
             // Determine confidence based on similarity
             $confidence = $similarityPercent >= 80 ? 'high' : ($similarityPercent >= 60 ? 'medium' : 'low');
             
-            Log::info('Plagiarism detection completed (Vector Similarity Method)', [
+            Log::info('Plagiarism detection completed', [
+                'method' => $methodName,
                 'similarity_to_ai' => $similarityPercent,
                 'originality_score' => $originalityScore,
                 'matched_ghost' => $matchedGhost,
@@ -89,7 +101,8 @@ class AIPlagiarismDetectionService
                     : "Code shows high similarity ({$similarityPercent}%) to known AI-generated solutions",
                 'indicators' => $indicators,
                 'confidence' => $confidence,
-                'matched_solution' => $matchedGhost
+                'matched_solution' => $matchedGhost,
+                'detection_method' => $methodName
             ];
             
         } catch (\Exception $e) {
@@ -167,7 +180,64 @@ class AIPlagiarismDetectionService
     }
     
     /**
-     * Run Python vector similarity checker
+     * Run Python CodeBERT similarity checker (Semantic Analysis)
+     */
+    private function runCodeBERTSimilarityCheck(string $studentFile, string $ghostDir): ?array
+    {
+        // Path to Python script
+        $scriptPath = base_path('check_similarity_codebert.py');
+        
+        // Path to Python executable in virtual environment
+        $pythonPath = base_path('venv_plagiarism/bin/python3');
+        
+        // Fallback to system Python if venv doesn't exist
+        if (!file_exists($pythonPath)) {
+            $pythonPath = 'python3';
+        }
+        
+        // Build command
+        $command = sprintf(
+            '%s %s %s %s 2>&1',
+            escapeshellarg($pythonPath),
+            escapeshellarg($scriptPath),
+            escapeshellarg($studentFile),
+            escapeshellarg($ghostDir)
+        );
+        
+        // Execute command
+        $output = shell_exec($command);
+        
+        if ($output === null || trim($output) === '') {
+            Log::error('CodeBERT similarity checker returned no output', [
+                'command' => $command
+            ]);
+            return null;
+        }
+        
+        $output = trim($output);
+        
+        // Parse output format: "0.8542|AI_SUSPECT_1_chatgpt.py"
+        if (strpos($output, '|') !== false) {
+            list($similarity, $matchedFile) = explode('|', $output, 2);
+            
+            return [
+                'similarity' => (float)$similarity,
+                'matched_file' => $matchedFile
+            ];
+        } else {
+            // Error or unexpected format
+            Log::warning('CodeBERT returned unexpected format', [
+                'output' => $output
+            ]);
+            return [
+                'similarity' => 0.0,
+                'matched_file' => 'unknown'
+            ];
+        }
+    }
+    
+    /**
+     * Run Python vector similarity checker (TF-IDF Method)
      */
     private function runVectorSimilarityCheck(string $studentFile, string $ghostDir): ?array
     {
@@ -223,21 +293,25 @@ class AIPlagiarismDetectionService
     /**
      * Get indicators based on similarity score
      */
-    private function getIndicators(float $similarity, string $matchedGhost): array
+    private function getIndicators(float $similarity, string $matchedGhost, string $method = 'Vector Similarity'): array
     {
         if ($similarity >= 80) {
             return [
                 "Code is {$similarity}% similar to known AI solution '{$matchedGhost}'",
-                "Extremely high TF-IDF vector similarity detected",
-                "Code structure and token patterns match AI-generated solutions",
-                "Rare keywords and function usage align with ChatGPT/Copilot outputs"
+                "Extremely high semantic similarity detected using {$method}",
+                "Code structure and patterns match AI-generated solutions",
+                $method === 'CodeBERT Semantic Similarity' 
+                    ? "Deep learning analysis confirms AI authorship patterns"
+                    : "Rare keywords and function usage align with ChatGPT/Copilot outputs"
             ];
         } elseif ($similarity >= 60) {
             return [
                 "Code shows {$similarity}% similarity to AI solution '{$matchedGhost}'",
-                "High vector similarity in code patterns detected",
+                "High similarity in code patterns detected using {$method}",
                 "Significant overlap in algorithmic approach with AI solutions",
-                "Token distribution matches typical AI-generated code"
+                $method === 'CodeBERT Semantic Similarity'
+                    ? "Semantic embeddings suggest AI-generated code"
+                    : "Token distribution matches typical AI-generated code"
             ];
         } elseif ($similarity >= 40) {
             return [
@@ -248,7 +322,7 @@ class AIPlagiarismDetectionService
         } else {
             return [
                 "Code appears original ({$similarity}% similarity to AI solutions)",
-                "Unique token distribution and structure",
+                "Unique implementation style detected",
                 "Implementation approach differs from known AI patterns"
             ];
         }
@@ -260,11 +334,13 @@ class AIPlagiarismDetectionService
     private function getFallbackResult(): array
     {
         return [
-            'ai_probability' => 0,
-            'reason' => 'Plagiarism detection service unavailable - no ghost solutions found',
-            'indicators' => ['No AI reference solutions available for comparison'],
+            'ai_probability' => 100, // Give benefit of doubt - assume original when system can't check
+            'similarity_to_ai' => 0, // No similarity detected (because we couldn't check)
+            'reason' => 'Plagiarism detection service unavailable - no ghost solutions found. Code marked as original by default.',
+            'indicators' => ['No AI reference solutions available for comparison', 'Student given benefit of doubt'],
             'confidence' => 'low',
-            'matched_solution' => null
+            'matched_solution' => null,
+            'detection_method' => $this->detectionMethod === 'codebert' ? 'CodeBERT Semantic Similarity' : 'TF-IDF Vector Similarity'
         ];
     }
     

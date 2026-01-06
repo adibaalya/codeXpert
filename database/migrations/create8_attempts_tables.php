@@ -17,13 +17,11 @@ return new class extends Migration
             // FK - QUESTION (NOT NULL)
             $table->foreignId('question_ID')->constrained('questions', 'question_ID')->onDelete('cascade');
 
-            // FKs - OWNERSHIP (One MUST be NOT NULL, the other NULL)
-            // Learner ID for practice attempts
+            // FK - LEARNER (for practice attempts)
             $table->foreignId('learner_ID')->nullable()->constrained('learners', 'learner_ID')->onDelete('cascade');
-            // Test Result ID for competency test attempts
-            $table->foreignId('testResult_ID')->nullable()->constrained('reviewer_competencies', 'testResult_ID')->onDelete('cascade');
 
             $table->text('submittedCode');
+            $table->string('language')->nullable(); // Programming language used
             $table->float('plagiarismScore')->default(0);
             $table->float('accuracyScore');
             $table->text('aiFeedback')->nullable();

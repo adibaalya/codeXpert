@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     window.saveToQueue = async function() {
         if (!currentQuestionData) {
-            showModal('No question to save', 'Please generate a question first before saving.');
+            showModal('Error', 'Please generate a question first before saving.');
             return;
         }
 
@@ -96,20 +96,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('successModal');
         const modalTitle = document.getElementById('successTitle');
         const modalMessage = document.getElementById('successMessage');
-        const questionTitle = document.getElementById('successQuestionTitle');
-        const scoreElement = document.getElementById('successScore');
         
         modalTitle.textContent = title;
-        
-        // If it's a success message with a question title, populate separately
-        if (currentQuestionData && currentQuestionData.title && title === 'Question Approved') {
-            questionTitle.textContent = currentQuestionData.title;
-            scoreElement.textContent = '75%';
-        } else {
-            // For error messages, just show the message
-            modalMessage.innerHTML = message;
-        }
-        
+        modalMessage.textContent = message;
         modal.style.display = 'flex';
     }
 

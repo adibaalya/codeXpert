@@ -241,48 +241,31 @@ class QuestionGeneratorController extends Controller
     
     private function buildPrompt(array $params)
     {
-        // 1. Domains
-        $domains = [
-            'FinTech (Banking, Fees, Interest)',
-            'Healthcare (Triage, Vitals, Schedules)',
-            'E-commerce (Discounts, Inventory, Cart)',
-            'Gaming (Leaderboards, Scores, Inventory)',
-            'Logistics (Routes, Cargo, Tracking)',
-            'School System (Grades, Attendance, Schedules)'
-        ];
+        $domains = ['FinTech', 'Healthcare', 'E-commerce', 'Logistics', 'Gaming'];
         $selectedDomain = $domains[array_rand($domains)];
 
-        $prompt  = "You are an expert technical interviewer.\n";
-        $prompt .= "Generate 1 coding interview question for {$params['language']} ({$params['difficulty']}).\n";
-        $prompt .= "Context: {$params['prompt']}.\n";
+        $prompt  = "You are a Senior Technical Interviewer. Create a '{$params['difficulty']}' challenge for {$params['language']}.\n";
         $prompt .= "Domain: {$selectedDomain}.\n\n";
 
-        $prompt .= "STRICT REQUIREMENTS:\n";
-        $prompt .= "1. **Real World Context**: Use the domain above. NO server logs or abstract math.\n";
-        $prompt .= "2. **Concise Writing**: 'description' and 'problem_statement' must be SHORT (max 2 sentences each).\n";
-        $prompt .= "3. **Test Cases**: Generate EXACTLY 3 test cases.\n";
-        $prompt .= "4. **Solution**: You MUST provide the full, working solution code in the 'solution' field.\n";
-        $prompt .= "5. **Hint**: The hint MUST be a numbered list (1., 2., 3.) explaining the steps.\n\n";
+        $prompt .= "STRICT JSON STRUCTURE REQUIREMENTS:\n";
+        $prompt .= "1. **description**: A high-level business summary (max 3 sentences).\n";
+        $prompt .= "2. **problem_statement**: MANDATORY. Detailed technical rules. Explain what the code must do (max 4 sentences).\n";
+        $prompt .= "3. **expected_approach**: MANDATORY. A numbered list (1, 2, 3) of the algorithmic steps.\n";
+        $prompt .= "4. **Anti-Simple Rule**: The solution must handle edge cases and be at least 10 lines of code. No one-liners.\n\n";
 
-        $prompt .= "Output strictly valid JSON (no markdown). Use this structure:\n";
+        $prompt .= "Return ONLY valid JSON:\n";
         $prompt .= "{\n";
-        $prompt .= "  \"title\": \"Short Business Title\",\n";
-        $prompt .= "  \"function_name\": \"camelCaseFunctionName\",\n";
-        $prompt .= "  \"description\": \"Two hospital wings are merging their patient queues.\",\n";
-        $prompt .= "  \"problem_statement\": \"Implement `mergeLists` to combine two sorted arrays into one.\",\n";
-        $prompt .= "  \"constraints\": [\"Array length <= 100\", \"Sorted input\"],\n";
-        // Enforce full code in the example so the AI mimics it
-        $prompt .= "  \"solution\": \"class Solution { public int[] solve(int[] a, int[] b) { ...full code... } }\",\n";
-        $prompt .= "  \"language\": \"{$params['language']}\",\n";
+        $prompt .= "  \"title\": \"String\",\n";
         $prompt .= "  \"difficulty\": \"{$params['difficulty']}\",\n";
-        $prompt .= "  \"topic\": \"Arrays\",\n";
-        // Enforce numbered list format
-        $prompt .= "  \"hint\": \"1. Initialize two pointers.\\n2. Compare elements.\\n3. Push smaller element to result.\",\n";
-        $prompt .= "  \"tests\": [\n";
-        $prompt .= "    {\"input\": {\"a\": 1, \"b\": 2}, \"output\": 3},\n";
-        $prompt .= "    {\"input\": {\"a\": 0, \"b\": 0}, \"output\": 0},\n";
-        $prompt .= "    {\"input\": {\"a\": -1, \"b\": 1}, \"output\": 0}\n";
-        $prompt .= "  ]\n";
+        $prompt .= "  \"return_type\": \"String\",\n";
+        $prompt .= "  \"description\": \"Business context here.\",\n";
+        $prompt .= "  \"problem_statement\": \"Technical logic requirements here.\",\n";
+        $prompt .= "  \"constraints\": [\"Constraint 1\", \"Constraint 2\"],\n";
+        $prompt .= "  \"function_name\": \"methodName\",\n";
+        $prompt .= "  \"solution\": \"Full implementation code\",\n";
+        $prompt .= "  \"expected_approach\": \"1. Step one... 2. Step two...\",\n";
+        $prompt .= "  \"topic\": \"Algorithm Category\",\n";
+        $prompt .= "  \"tests\": [{\"input\": {}, \"output\": \"\"}]\n";
         $prompt .= "}";
 
         return $prompt;
@@ -292,47 +275,67 @@ class QuestionGeneratorController extends Controller
     {
         Log::info('Raw AI Response:', ['text' => substr($text, 0, 500) . '...']);
         
+        // 1. Clean Markdown JSON blocks
         $cleanText = preg_replace('/^```json\s*/i', '', trim($text));
         $cleanText = preg_replace('/^```\s*/', '', $cleanText);
         $cleanText = preg_replace('/```$/', '', $cleanText);
         
         $decoded = json_decode($cleanText, true);
 
+        // 2. Handle cases where AI returns an array containing the object
         if (is_array($decoded) && isset($decoded[0]) && is_array($decoded[0])) {
             $decoded = $decoded[0];
         }
 
+        // 3. Validation & Fallback
         if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
             Log::error('JSON Parse Error', ['error' => json_last_error_msg()]);
-            // Fallback structure
-            return [
-                'title' => 'Generation Failed',
-                'function_name' => 'solve',
-                'description' => 'AI generation failed.',
-                'problemStatement' => 'Please try again.',
-                'constraints' => [],
-                'expectedApproach' => '1. Retry generation.',
-                'tests' => [],
-                'solution' => '// No solution generated',
-                'topic' => 'General'
-            ];
+            return $this->getFallbackStructure();
         }
 
+        // 4. Mapping to your Build Prompt attributes
         return [
-            'title' => $decoded['title'] ?? 'Generated Question',
-            'function_name' => $decoded['function_name'] ?? 'solve',
-            'description' => $decoded['description'] ?? '',
-            'problemStatement' => $decoded['problem_statement'] ?? ($decoded['description'] ?? ''),
-            'constraints' => $decoded['constraints'] ?? [],
-            'expectedApproach' => $decoded['hint'] ?? ($decoded['expectedApproach'] ?? '1. Analyze input.'),
-            'tests' => $decoded['tests'] ?? [],
+            'title'             => $decoded['title'] ?? 'Business Challenge',
+            'difficulty'        => $decoded['difficulty'] ?? 'Beginner',
+            'return_type'       => $decoded['return_type'] ?? 'void', // Added based on new prompt
             
-            // Check if solution exists, if not, put a placeholder so it doesn't crash
-            'solution' => $decoded['solution'] ?? '// Solution missing from AI response',
+            // Ensure the description stays short (3-4 sentences max as per prompt)
+            'description'       => $decoded['description'] ?? 'A real-world business logic challenge.',
             
-            'topic' => $decoded['topic'] ?? 'General',
-            'language' => $decoded['language'] ?? 'Unknown',
-            'difficulty' => $decoded['difficulty'] ?? 'Beginner'
+            // Technical requirements
+            'problemStatement' => $decoded['problem_statement'] ?? 'Implement the logic to solve the business requirement.',
+            
+            'constraints'       => $decoded['constraints'] ?? ['Complexity: O(n)'],
+            'function_name'     => $decoded['function_name'] ?? 'solve',
+            
+            // Solution is now expected to be 10-15+ lines
+            'solution'          => $decoded['solution'] ?? '// Logic implementation required.',
+            
+            // Hint mapped from the numbered list in buildPrompt
+            'expectedApproach' => $decoded['expected_approach'] ?? ($decoded['hint'] ?? '1. Analyze input.'),
+            
+            'tests'             => $decoded['tests'] ?? [],
+            'topic'             => $decoded['topic'] ?? 'General',
+        ];
+    }
+
+    /**
+     * Ensures the app doesn't crash if the AI fails
+     */
+    private function getFallbackStructure(): array
+    {
+        return [
+            'title'             => 'System Logic Task',
+            'difficulty'        => 'Medium',
+            'return_type'       => 'boolean',
+            'description'       => 'We encountered an error generating the scenario.',
+            'problem_statement' => 'Please refresh to generate a new technical challenge.',
+            'constraints'       => ['N/A'],
+            'function_name'     => 'process',
+            'solution'          => '// Error in generation',
+            'hint'              => 'Check your prompt configuration.',
+            'tests'             => [],
+            'topic'             => 'General'
         ];
     }
 }

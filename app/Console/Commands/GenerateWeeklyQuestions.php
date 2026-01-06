@@ -129,45 +129,34 @@ class GenerateWeeklyQuestions extends Command
      */
     private function buildPrompt($language, $difficulty)
     {
-        // 1. Domains List
         $domains = [
-            'FinTech (Banking, Fees, Interest)',
-            'Healthcare (Triage, Vitals, Schedules)',
-            'E-commerce (Discounts, Inventory, Cart)',
-            'Gaming (Leaderboards, Scores, Inventory)',
-            'Logistics (Routes, Cargo, Tracking)',
-            'School System (Grades, Attendance, Schedules)'
+            'FinTech (Transaction Ledgers)', 'Healthcare (Triage Logic)', 
+            'E-commerce (Inventory Locks)', 'Logistics (Route Efficiency)'
         ];
         $selectedDomain = $domains[array_rand($domains)];
 
-        $prompt  = "You are an expert technical interviewer.\n";
-        $prompt .= "Generate 1 coding interview question for {$language} ({$difficulty}).\n";
+        $prompt  = "You are a Senior LeetCode Content Engineer. Generate 1 coding problem for {$language} ({$difficulty}).\n";
         $prompt .= "Domain: {$selectedDomain}.\n\n";
 
         $prompt .= "STRICT REQUIREMENTS:\n";
-        $prompt .= "1. **Real World Context**: Use the domain above. NO server logs or abstract math.\n";
-        $prompt .= "2. **Concise Writing**: 'description' and 'problem_statement' must be SHORT (max 2 sentences each).\n";
-        $prompt .= "3. **Test Cases**: Generate EXACTLY 3 test cases.\n";
-        $prompt .= "4. **Solution**: You MUST provide the full, working solution code in the 'solution' field.\n";
-        $prompt .= "5. **Hint**: The hint MUST be a numbered list (1., 2., 3.) explaining the steps.\n\n";
+        $prompt .= "1. **Description**: High-level business context (max 3 sentences).\n";
+        $prompt .= "2. **Problem Statement**: MANDATORY. Technical logic and transformation rules (max 4 sentences).\n";
+        $prompt .= "3. **Return Type**: Explicitly state the data type returned (e.g., int[], boolean, String).\n";
+        $prompt .= "4. **The 'Anti-Simple' Rule**: Logic must handle edge cases and be at least 10-15 lines. No one-line built-in function solutions.\n";
+        $prompt .= "5. **Advanced Difficulty**: Must require algorithms like DP, BFS/DFS, or Tries.\n\n";
 
-        $prompt .= "Output strictly valid JSON (no markdown). Use this structure:\n";
+        $prompt .= "Output strictly valid JSON (no markdown). Use this exact keys:\n";
         $prompt .= "{\n";
         $prompt .= "  \"title\": \"Short Business Title\",\n";
-        $prompt .= "  \"function_name\": \"camelCaseFunctionName\",\n";
-        $prompt .= "  \"description\": \"Two hospital wings are merging their patient queues.\",\n";
-        $prompt .= "  \"problem_statement\": \"Implement `mergeLists` to combine two sorted arrays into one.\",\n";
-        $prompt .= "  \"constraints\": [\"Array length <= 100\", \"Sorted input\"],\n";
-        $prompt .= "  \"solution\": \"class Solution { public int[] solve(int[] a, int[] b) { ...full code... } }\",\n";
-        $prompt .= "  \"language\": \"{$language}\",\n";
-        $prompt .= "  \"difficulty\": \"{$difficulty}\",\n";
-        $prompt .= "  \"topic\": \"Arrays\",\n";
-        $prompt .= "  \"hint\": \"1. Initialize two pointers.\\n2. Compare elements.\\n3. Push smaller element to result.\",\n";
-        $prompt .= "  \"tests\": [\n";
-        $prompt .= "    {\"input\": {\"a\": 1, \"b\": 2}, \"output\": 3},\n";
-        $prompt .= "    {\"input\": {\"a\": 0, \"b\": 0}, \"output\": 0},\n";
-        $prompt .= "    {\"input\": {\"a\": -1, \"b\": 1}, \"output\": 0}\n";
-        $prompt .= "  ]\n";
+        $prompt .= "  \"function_name\": \"methodName\",\n";
+        $prompt .= "  \"return_type\": \"String\",\n";
+        $prompt .= "  \"description\": \"The business scenario.\",\n";
+        $prompt .= "  \"problem_statement\": \"Technical implementation details.\",\n";
+        $prompt .= "  \"constraints\": [\"Complexity O(n)\", \"Input size <= 10^5\"],\n";
+        $prompt .= "  \"solution\": \"class Solution { ...full code... }\",\n";
+        $prompt .= "  \"topic\": \"Algorithm Category\",\n";
+        $prompt .= "  \"expected_approach\": \"1. Step one.\\n2. Step two.\\n3. Step three.\",\n";
+        $prompt .= "  \"tests\": [{\"input\": {}, \"output\": \"\"}]\n";
         $prompt .= "}";
 
         return $prompt;
@@ -177,36 +166,36 @@ class GenerateWeeklyQuestions extends Command
     
     private function parseGeneratedQuestion(string $text)
     {
-        // 1. Clean Markdown
         $cleanText = preg_replace('/^```json\s*/i', '', trim($text));
         $cleanText = preg_replace('/^```\s*/', '', $cleanText);
         $cleanText = preg_replace('/```$/', '', $cleanText);
         
-        // 2. Decode
         $decoded = json_decode($cleanText, true);
 
-        // Handle array wrapper [ {} ]
         if (is_array($decoded) && isset($decoded[0]) && is_array($decoded[0])) {
             $decoded = $decoded[0];
         }
 
         if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
-            Log::error('Weekly Generation JSON Error', ['error' => json_last_error_msg(), 'raw' => $cleanText]);
+            Log::error('AI JSON Error', ['error' => json_last_error_msg()]);
             return [];
         }
 
-        // 3. Map Fields (Matching Controller Logic)
         return [
-            'title' => $decoded['title'] ?? 'Weekly Challenge',
-            'function_name' => $decoded['function_name'] ?? 'solve',
-            'description' => $decoded['description'] ?? '',
-            'problemStatement' => $decoded['problem_statement'] ?? ($decoded['description'] ?? ''),
-            'constraints' => $decoded['constraints'] ?? [],
-            'solution' => $decoded['solution'] ?? '// No solution provided',
-            'topic' => $decoded['topic'] ?? 'General',
-            // Map 'hint' to 'expectedApproach'
-            'expectedApproach' => $decoded['hint'] ?? ($decoded['expectedApproach'] ?? '1. Analyze the input.'),
-            'tests' => $decoded['tests'] ?? []
+            'title'             => $decoded['title'] ?? 'Business Challenge',
+            'function_name'     => $decoded['function_name'] ?? 'solve',
+            'return_type'       => $decoded['return_type'] ?? 'mixed',
+            'description'       => $decoded['description'] ?? '',
+            // FIX: Check for both snake_case and camelCase
+            'problemStatement' => $decoded['problem_statement'] ?? ($decoded['problemStatement'] ?? ($decoded['description'] ?? '')),
+            'constraints'       => $decoded['constraints'] ?? [],
+            'solution'          => $decoded['solution'] ?? '// Logic required',
+            'topic'             => $decoded['topic'] ?? 'General',
+            // FIX: Check for expected_approach, hint, or approach
+            'expected_approach' => $decoded['expected_approach'] ?? ($decoded['hint'] ?? ($decoded['expectedApproach'] ?? '1. Analyze input.')),
+            'tests'             => $decoded['tests'] ?? [],
+            'language'          => $decoded['language'] ?? 'Unknown',
+            'difficulty'        => $decoded['difficulty'] ?? 'intermediate'
         ];
     }
 
@@ -214,65 +203,51 @@ class GenerateWeeklyQuestions extends Command
     
     private function saveQuestion($parsed, $language, $difficulty)
     {
+        if (empty($parsed)) return null;
+
         $levelMap = ['beginner' => 'beginner', 'intermediate' => 'intermediate', 'advanced' => 'advanced'];
         $mappedLevel = $levelMap[strtolower($difficulty)] ?? 'intermediate';
 
-        $constraintsText = "";
-        if (is_array($parsed['constraints'])) {
-            $constraintsText = implode("\n", array_map(fn($c) => "- $c", $parsed['constraints']));
-        }
+        $constraintsText = is_array($parsed['constraints']) 
+            ? implode("\n", array_map(fn($c) => "- $c", $parsed['constraints'])) 
+            : "";
 
         $inputData = [];
         $expectedOutputData = [];
 
-        // ALIGNED: Handle [object Object] fix by encoding input
         if (isset($parsed['tests']) && is_array($parsed['tests'])) {
             foreach ($parsed['tests'] as $index => $test) {
-                
-                $inputVal = $test['input'] ?? [];
-                
-                // If it's an array/object, leave it as is. 
-                // The Model cast (protected $casts = ['input' => 'array']) handles encoding to JSON string for DB.
-                // NOTE: In the Controller we encoded it for the Frontend Display. 
-                // Here we are saving directly to DB, so Laravel's Eloquent casting handles array->json.
-                
-                $inputData[] = [
-                    'test_case' => $index + 1,
-                    'input' => $inputVal
-                ];
-
-                // Output is usually a simple value, but robustly handle it
-                $expectedOutputData[] = [
-                    'test_case' => $index + 1,
-                    'output' => $test['output'] ?? ''
-                ];
+                $inputData[] = ['test_case' => $index + 1, 'input' => $test['input'] ?? []];
+                $expectedOutputData[] = ['test_case' => $index + 1, 'output' => $test['output'] ?? ''];
             }
         }
 
-        $content = "# {$parsed['title']}\n\n## Description\n{$parsed['description']}\n\n## Constraints\n$constraintsText\n\n## Hint\n{$parsed['expectedApproach']}";
-
-        // Assign to a System Reviewer or Null
-        // Assuming Reviewer ID 1 exists, or you can make this nullable in DB
-        $systemReviewerId = 1; 
+        // Include the Technical Requirements and Return Type in the Markdown content
+        $content = "# {$parsed['title']}\n\n" .
+                "**Return Type:** `{$parsed['return_type']}`\n\n" .
+                "## Description\n{$parsed['description']}\n\n" .
+                "## Technical Requirements\n{$parsed['problem_statement']}\n\n" .
+                "## Constraints\n$constraintsText\n\n" .
+                "## Expected Approach\n{$parsed['expected_approach']}";
 
         return Question::create([
-            'title' => $parsed['title'],
-            'function_name' => $parsed['function_name'], 
-            'content' => $content,
-            'description' => $parsed['description'],
+            'title'             => $parsed['title'],
+            'function_name'     => $parsed['function_name'], 
+            'content'           => $content,
+            'description'       => $parsed['description'],
             'problem_statement' => $parsed['problemStatement'],
-            'constraints' => trim($constraintsText),
-            'expected_output' => $expectedOutputData,
-            'answersData' => $parsed['solution'],
-            'status' => 'Pending',
-            'language' => $language,
-            'level' => $mappedLevel,
-            'questionCategory' => 'learnerPractice',
-            'questionType' => 'Code_Solution',
-            'chapter' => $parsed['topic'],
-            'hint' => $parsed['expectedApproach'],
-            'input' => $inputData,
-            'reviewer_ID' => $systemReviewerId // Ensure this ID exists in your reviewers table
+            'constraints'       => trim($constraintsText),
+            'expected_output'   => $expectedOutputData,
+            'answersData'       => $parsed['solution'],
+            'status'            => 'Pending',
+            'language'          => $language,
+            'level'             => $mappedLevel,
+            'questionCategory'  => 'learnerPractice',
+            'questionType'      => 'Code_Solution',
+            'chapter'           => $parsed['topic'],
+            'hint'              => $parsed['expected_approach'],
+            'input'             => $inputData,
+            'reviewer_ID'       => 1 
         ]);
     }
 }

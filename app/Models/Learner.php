@@ -47,6 +47,14 @@ class Learner extends Authenticatable
         return $this->hasMany(UserProficiency::class, 'learner_ID', 'learner_ID');
     }
 
+    /**
+     * Get all attempts made by this learner
+     */
+    public function attempts()
+    {
+        return $this->hasMany(Attempt::class, 'learner_ID', 'learner_ID');
+    }
+
     // ========================================
     // QUADRATIC CURVE LEVELING SYSTEM
     // Formula: Total XP Required = Constant × (Level)²

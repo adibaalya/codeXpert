@@ -255,7 +255,7 @@
                                 </svg> 
                                 Run Code
                             </button>
-                            <button type="button" class="submit-test-btn" id="submitBtn" onclick="submitCode()" disabled style="opacity: 0.5; cursor: not-allowed;">
+                            <button type="button" class="submit-test-btn" id="submitBtn" onclick="submitCode()" disabled>
                                 Submit Solution 
                                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -271,12 +271,28 @@
     <!-- Monaco Editor CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
     <script>
+        @php
+            $functionParams = $question->function_parameters;
+            if (is_string($functionParams)) {
+                $functionParams = json_decode($functionParams, true) ?? [];
+            } elseif (!is_array($functionParams)) {
+                $functionParams = [];
+            }
+            
+            $initialCode = app('App\Services\CodeTemplateService')->generateTemplate(
+                $question->language ?? 'Python',
+                $question->function_name ?? null,
+                $functionParams,
+                $question->return_type ?? 'bool'
+            );
+        @endphp
+        
         window.codingConfig = {
             questionId: "{{ $question->question_ID }}",
             language: "{{ $question->language ?? 'Python' }}",
             level: "{{ $question->level ?? '' }}",
             chapter: "{{ $question->chapter ?? '' }}",
-            initialCode: @json(app('App\Services\CodeTemplateService')->generateTemplate($question->language ?? 'Python')),
+            initialCode: @json($initialCode),
             routes: {
                 run: "{{ route('learner.coding.run') }}",
                 rate: "{{ route('learner.coding.rate') }}",
@@ -298,7 +314,7 @@
             // Reset submit button state if there was an error
             const submitBtn = document.getElementById('submitBtn');
             if (submitBtn) {
-                submitBtn.disabled = false;
+                submitBtn.disabled = true;
                 submitBtn.innerHTML = 'Submit Solution <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
             }
             

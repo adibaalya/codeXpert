@@ -710,73 +710,27 @@ class CompetencyTestController extends Controller
             'total_solutions_stored' => count($codeSolutions)
         ]);
 
-        // Store current submission feedback in session
-        session()->put('submission_feedback', [
-            'question_id' => $request->question_id,
-            'question_title' => $question->title,
-            'passed_tests' => $passedTests,
-            'total_tests' => $totalTests,
-            'test_results' => $testResults,
-            'score' => $questionScore,
-            'ai_feedback' => $aiFeedback,
-            'plagiarism_score' => $plagiarismScore,
-            'plagiarism_analysis' => $plagiarismAnalysis
-        ]);
-
-        \Log::info('Stored submission feedback in session');
-
-        // DON'T increment index yet - do it after user sees feedback
-        // This ensures feedback shows for current question, not next one
+        // Increment index since we're going directly to results
+        $currentIndex = session('current_code_index', 0);
+        $newIndex = $currentIndex + 1;
+        session()->put('current_code_index', $newIndex);
         
         // Save session to ensure it persists
         session()->save();
 
-        \Log::info('Session saved, redirecting to feedback page');
-
-        // Redirect to feedback page to show test results
-        return redirect()->route('reviewer.competency.code.feedback');
-    }
-
-    public function showCodeFeedback()
-    {
-        $feedback = session('submission_feedback');
-        
-        if (!$feedback) {
-            return redirect()->route('reviewer.competency.code');
-        }
-
-        $codeQuestions = session('code_questions');
-        $currentIndex = session('current_code_index', 0);
-        
-        // Check if this is the last question (compare current + 1 with total)
-        $isLastQuestion = ($currentIndex + 1) >= count($codeQuestions);
-
-        return view('reviewer.competency.code-feedback', [
-            'feedback' => $feedback,
-            'isLastQuestion' => $isLastQuestion,
-            'currentQuestion' => $currentIndex + 1,
-            'totalQuestions' => count($codeQuestions)
+        \Log::info('Session saved, checking if test is complete', [
+            'current_index' => $newIndex,
+            'total_questions' => count(session('code_questions', []))
         ]);
-    }
 
-    public function continueFromFeedback()
-    {
-        // Clear the feedback from session
-        session()->forget('submission_feedback');
-
-        // NOW increment the index after user has seen feedback
-        $currentIndex = session('current_code_index', 0);
-        $newIndex = $currentIndex + 1;
-        session()->put('current_code_index', $newIndex);
-        session()->save();
-        
-        $codeQuestions = session('code_questions');
-        
         // Check if we've completed all code questions
+        $codeQuestions = session('code_questions', []);
         if ($newIndex >= count($codeQuestions)) {
+            // All questions completed - go to final results
             return $this->submitTest();
         }
 
+        // More questions remaining - go to next question
         return redirect()->route('reviewer.competency.code');
     }
 

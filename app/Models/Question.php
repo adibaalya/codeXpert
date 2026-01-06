@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class Question extends Model
 {
     protected $primaryKey = 'question_ID';
+    public $incrementing = true;
+    protected $keyType = 'int';
 
     // Allowed programming languages (SQL removed)
     const ALLOWED_LANGUAGES = ['Java', 'C', 'C++', 'Python', 'JavaScript', 'PHP', 'C#'];
@@ -85,5 +87,13 @@ class Question extends Model
     public function ratings()
     {
         return $this->hasMany(QuestionRating::class, 'question_ID', 'question_ID');
+    }
+
+    /**
+     * Get all attempts made for this question
+     */
+    public function attempts()
+    {
+        return $this->hasMany(Attempt::class, 'question_ID', 'question_ID');
     }
 }

@@ -162,7 +162,7 @@
                         <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                         </svg>
-                        TF-IDF Vector Similarity Analysis (60% minimum required)
+                        {{ $submission['plagiarism_analysis']['detection_method'] ?? 'AI Similarity Analysis' }} (60% minimum required)
                         @if($plagiarismPassed)
                             <span style="color: #10B981; font-weight: 600;">✓ Passed</span>
                         @else
@@ -245,7 +245,7 @@
                             <h3 style="color: white; font-size: 20px; font-weight: 700; margin: 0;">Plagiarism Analysis</h3>
                         </div>
                         <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">
-                            TF-IDF Vector Similarity Method - Comparing your code against known AI-generated solutions
+                            CodeBERT - Comparing your code against known AI-generated solutions
                         </p>
                     </div>
 

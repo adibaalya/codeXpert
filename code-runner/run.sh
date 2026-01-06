@@ -120,8 +120,8 @@ case "$FILE_EXTENSION" in
         
     c)
         # C: Compiled language
-        # Compile with C11 standard and safety flags
-        gcc -std=c11 -O1 -Wall -Wextra -fno-stack-protector -z execstack -o main "$FILENAME" 2>&1
+        # Compile with C11 standard and safety flags (matching C++ approach)
+        gcc -std=c11 -O2 -Wall -Wextra -o main "$FILENAME" 2>&1
         COMPILE_EXIT=$?
         if [ $COMPILE_EXIT -eq 0 ]; then
             # Check if binary was created
