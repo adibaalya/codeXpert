@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Run Code API</title>
+</head>
+<body>
+    <h1>Test Run Code API</h1>
+    <button onclick="testRunCode()">Click to Test API</button>
+    <pre id="result"></pre>
+
+    <script>
+        function testRunCode() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = 'Testing...';
+
+            // Simple test code
+            const testCode = `
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello World");
+    }
+}`;
+
+            fetch('/reviewer/competency/code/run', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': 'test-token-bypass'
+                },
+                body: JSON.stringify({
+                    solution: testCode,
+                    question_id: '1'
+                })
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                return response.text();
+            })
+            .then(text => {
+                console.log('Response text:', text);
+                resultDiv.textContent = text;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                resultDiv.textContent = 'ERROR: ' + error.message;
+            });
+        }
+    </script>
+</body>
+</html>

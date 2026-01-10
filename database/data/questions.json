@@ -1,0 +1,203 @@
+[
+  {
+    "title": "Calculate Bank Transaction Fee",
+    "function_name": "calculateBankFee",
+    "description": "A bank charges a fixed fee for each transaction performed by a customer.",
+    "problem_statement": "Compute the total transaction fee based on the number of transactions and fee per transaction.",
+    "constraints": [
+      "Transaction count is non-negative",
+      "Fee is non-negative"
+    ],
+    "solution": "#include <iostream>\nusing namespace std;\n\ndouble calculateBankFee(int count, double fee) {\n    return count * fee;\n}\n\nint main() {\n    cout << calculateBankFee(5, 2.0) << endl;\n    cout << calculateBankFee(0, 3.0) << endl;\n    cout << calculateBankFee(10, 1.5) << endl;\n    return 0;\n}",
+    "language": "C++",
+    "difficulty": "Beginner",
+    "topic": "Arithmetic",
+    "hint": "1. Multiply transaction count by fee.\n2. Use double for decimal precision.\n3. Return the total amount.",
+    "tests": [
+      {
+        "input": {
+          "count": 5,
+          "fee": 2.0
+        },
+        "output": 10.0
+      },
+      {
+        "input": {
+          "count": 0,
+          "fee": 3.0
+        },
+        "output": 0.0
+      },
+      {
+        "input": {
+          "count": 10,
+          "fee": 1.5
+        },
+        "output": 15.0
+      }
+    ],
+    "questionType": "Code_Solution",
+    "questionCategory": "learnerPractice"
+  },
+  {
+    "title": "Check Patient Fever",
+    "function_name": "isFever",
+    "description": "Healthcare systems check if a patient has a fever based on temperature.",
+    "problem_statement": "Return true if temperature exceeds 37.5 Celsius, otherwise false.",
+    "constraints": [
+      "Temperature is a float",
+      "Only a single value is given"
+    ],
+    "solution": "#include <iostream>\nusing namespace std;\n\nbool isFever(float temp) {\n    return temp > 37.5;\n}\n\nint main() {\n    cout << isFever(38.0) << endl;\n    cout << isFever(36.8) << endl;\n    cout << isFever(37.6) << endl;\n    return 0;\n}",
+    "language": "C++",
+    "difficulty": "Beginner",
+    "topic": "Conditionals",
+    "hint": "1. Compare temperature with 37.5.\n2. Return true if greater.\n3. Return false otherwise.",
+    "tests": [
+      {
+        "input": {
+          "temp": 38.0
+        },
+        "output": true
+      },
+      {
+        "input": {
+          "temp": 36.8
+        },
+        "output": false
+      },
+      {
+        "input": {
+          "temp": 37.6
+        },
+        "output": true
+      }
+    ],
+    "questionType": "Code_Solution",
+    "questionCategory": "learnerPractice"
+  },
+  {
+    "title": "Calculate Cart Total",
+    "function_name": "calculateCartTotal",
+    "description": "E-commerce platforms compute total prices of items in the shopping cart.",
+    "problem_statement": "Return the sum of all item prices in the cart.",
+    "constraints": [
+      "Prices are non-negative floats",
+      "Cart may be empty"
+    ],
+    "solution": "#include <iostream>\nusing namespace std;\n\ndouble calculateCartTotal(double prices[], int n) {\n    double sum = 0;\n    for(int i = 0; i < n; i++) {\n        sum += prices[i];\n    }\n    return sum;\n}\n\nint main() {\n    double prices1[] = {10, 20, 30};\n    double prices2[] = {};\n    double prices3[] = {5.5, 4.5};\n    cout << calculateCartTotal(prices1, 3) << endl;\n    cout << calculateCartTotal(prices2, 0) << endl;\n    cout << calculateCartTotal(prices3, 2) << endl;\n    return 0;\n}",
+    "language": "C++",
+    "difficulty": "Beginner",
+    "topic": "Arrays",
+    "hint": "1. Loop through the array.\n2. Sum all elements.\n3. Return the total.",
+    "tests": [
+      {
+        "input": {
+          "prices": [
+            10,
+            20,
+            30
+          ],
+          "n": 3
+        },
+        "output": 60.0
+      },
+      {
+        "input": {
+          "prices": [],
+          "n": 0
+        },
+        "output": 0.0
+      },
+      {
+        "input": {
+          "prices": [
+            5.5,
+            4.5
+          ],
+          "n": 2
+        },
+        "output": 10.0
+      }
+    ],
+    "questionType": "Code_Solution",
+    "questionCategory": "learnerPractice"
+  },
+  {
+    "title": "Update Game Score",
+    "function_name": "updateScore",
+    "description": "Gaming platforms update a player's score after each round.",
+    "problem_statement": "Return the new total score after adding points gained.",
+    "constraints": [
+      "Current score is integer",
+      "Points may be negative"
+    ],
+    "solution": "#include <iostream>\nusing namespace std;\n\nint updateScore(int current, int points) {\n    return current + points;\n}\n\nint main() {\n    cout << updateScore(100, 20) << endl;\n    cout << updateScore(50, -10) << endl;\n    cout << updateScore(0, 5) << endl;\n    return 0;\n}",
+    "language": "C++",
+    "difficulty": "Beginner",
+    "topic": "Arithmetic",
+    "hint": "1. Add points to current score.\n2. Return the result.\n3. Handle negative points correctly.",
+    "tests": [
+      {
+        "input": {
+          "current": 100,
+          "points": 20
+        },
+        "output": 120
+      },
+      {
+        "input": {
+          "current": 50,
+          "points": -10
+        },
+        "output": 40
+      },
+      {
+        "input": {
+          "current": 0,
+          "points": 5
+        },
+        "output": 5
+      }
+    ],
+    "questionType": "Code_Solution",
+    "questionCategory": "learnerPractice"
+  },
+  {
+    "title": "Check Fee Waiver",
+    "function_name": "isFeeWaived",
+    "description": "Banks waive fees for accounts exceeding a minimum balance.",
+    "problem_statement": "Return true if the balance meets or exceeds 1000, otherwise false.",
+    "constraints": [
+      "Balance is a non-negative float",
+      "Single account input"
+    ],
+    "solution": "#include <iostream>\nusing namespace std;\n\nbool isFeeWaived(double balance) {\n    return balance >= 1000;\n}\n\nint main() {\n    cout << isFeeWaived(1500) << endl;\n    cout << isFeeWaived(500) << endl;\n    cout << isFeeWaived(1000) << endl;\n    return 0;\n}",
+    "language": "C++",
+    "difficulty": "Beginner",
+    "topic": "Conditionals",
+    "hint": "1. Compare balance with 1000.\n2. Return true if greater or equal.\n3. Return false otherwise.",
+    "tests": [
+      {
+        "input": {
+          "balance": 1500
+        },
+        "output": true
+      },
+      {
+        "input": {
+          "balance": 500
+        },
+        "output": false
+      },
+      {
+        "input": {
+          "balance": 1000
+        },
+        "output": true
+      }
+    ],
+    "questionType": "Code_Solution",
+    "questionCategory": "learnerPractice"
+  }
+]
