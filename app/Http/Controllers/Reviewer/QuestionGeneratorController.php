@@ -142,7 +142,8 @@ class QuestionGeneratorController extends Controller
             'language' => 'required|string',
             'difficulty' => 'required|string',
             'topic' => 'required|string',
-            'function_name' => 'nullable|string', // Added validation
+            'function_name' => 'nullable|string',
+            'return_type' => 'nullable|string', // Added validation for return_type
         ]);
 
         try {
@@ -159,7 +160,7 @@ class QuestionGeneratorController extends Controller
 
             foreach ($request->tests as $index => $test) {
                 // Check if input is a JSON string (from our fix) or an array
-                $inputVal = $test['input'];
+                $inputVal = $test['input'] ?? '';
                 
                 // If the frontend sends back the string "{\"a\":1}", 
                 // we decode it back to an array so Laravel stores it cleanly as JSON
@@ -177,7 +178,7 @@ class QuestionGeneratorController extends Controller
 
                 $expectedOutputData[] = [
                     'test_case' => $index + 1,
-                    'output' => $test['output']
+                    'output' => $test['output'] ?? ''
                 ];
             }
 
@@ -193,10 +194,12 @@ class QuestionGeneratorController extends Controller
 
             // Use the parsed function name, or fallback to 'solve'
             $functionName = $request->input('function_name', 'solve');
+            $returnType = $request->input('return_type', 'void');
 
             $question = Question::create([
                 'title' => $request->title,
-                'function_name' => $functionName, // Save to new column
+                'function_name' => $functionName,
+                'return_type' => $returnType, // Added return_type
                 'content' => $content,
                 'description' => $request->description,
                 'problem_statement' => $request->problemStatement,
@@ -231,7 +234,11 @@ class QuestionGeneratorController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Save Question Error', ['message' => $e->getMessage()]);
+            Log::error('Save Question Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to save question: ' . $e->getMessage()

@@ -60,6 +60,9 @@ document.addEventListener('DOMContentLoaded', function() {
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving...';
 
+        // Debug: Log the data being sent
+        console.log('Saving question data:', currentQuestionData);
+
         try {
             const response = await fetch(config.routes.save, {
                 method: 'POST',
@@ -70,7 +73,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify(currentQuestionData)
             });
 
+            // Debug: Log response details
+            console.log('Response status:', response.status);
+            console.log('Response ok:', response.ok);
+
             const result = await response.json();
+            console.log('Response data:', result);
 
             if (result.success) {
                 const questionTitle = currentQuestionData.title || 'Question';
@@ -83,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 showModal('Error', result.message || 'Failed to save question');
             }
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error details:', error);
             showModal('Error', 'An error occurred while saving the question.');
         } finally {
             saveBtn.disabled = false;

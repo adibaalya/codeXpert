@@ -166,9 +166,13 @@ class GenerateWeeklyQuestions extends Command
     
     private function parseGeneratedQuestion(string $text)
     {
+        // Remove markdown code blocks
         $cleanText = preg_replace('/^```json\s*/i', '', trim($text));
         $cleanText = preg_replace('/^```\s*/', '', $cleanText);
         $cleanText = preg_replace('/```$/', '', $cleanText);
+        
+        // Remove control characters that break JSON parsing
+        $cleanText = preg_replace('/[\x00-\x1F\x7F]/', '', $cleanText);
         
         $decoded = json_decode($cleanText, true);
 
@@ -177,25 +181,27 @@ class GenerateWeeklyQuestions extends Command
         }
 
         if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
-            Log::error('AI JSON Error', ['error' => json_last_error_msg()]);
+            Log::error('AI JSON Error', [
+                'error' => json_last_error_msg(), 
+                'text' => substr($cleanText, 0, 1000)
+            ]);
             return [];
         }
+
+        // Extract problem_statement with fallback
+        $problemStatement = $decoded['problem_statement'] ?? ($decoded['problemStatement'] ?? $decoded['description'] ?? '');
 
         return [
             'title'             => $decoded['title'] ?? 'Business Challenge',
             'function_name'     => $decoded['function_name'] ?? 'solve',
-            'return_type'       => $decoded['return_type'] ?? 'mixed',
+            'return_type'       => $decoded['return_type'] ?? 'void',
             'description'       => $decoded['description'] ?? '',
-            // FIX: Check for both snake_case and camelCase
-            'problemStatement' => $decoded['problem_statement'] ?? ($decoded['problemStatement'] ?? ($decoded['description'] ?? '')),
+            'problem_statement' => $problemStatement, // Use snake_case consistently
             'constraints'       => $decoded['constraints'] ?? [],
             'solution'          => $decoded['solution'] ?? '// Logic required',
             'topic'             => $decoded['topic'] ?? 'General',
-            // FIX: Check for expected_approach, hint, or approach
             'expected_approach' => $decoded['expected_approach'] ?? ($decoded['hint'] ?? ($decoded['expectedApproach'] ?? '1. Analyze input.')),
             'tests'             => $decoded['tests'] ?? [],
-            'language'          => $decoded['language'] ?? 'Unknown',
-            'difficulty'        => $decoded['difficulty'] ?? 'intermediate'
         ];
     }
 
@@ -203,9 +209,12 @@ class GenerateWeeklyQuestions extends Command
     
     private function saveQuestion($parsed, $language, $difficulty)
     {
-        if (empty($parsed)) return null;
+        if (empty($parsed) || empty($parsed['title'])) {
+            Log::warning('Cannot save empty question', ['parsed' => $parsed]);
+            return null;
+        }
 
-        $levelMap = ['beginner' => 'beginner', 'intermediate' => 'intermediate', 'advanced' => 'advanced'];
+        $levelMap = ['beginner' => 'beginner', 'intermediate' => 'intermediate', 'advanced'];
         $mappedLevel = $levelMap[strtolower($difficulty)] ?? 'intermediate';
 
         $constraintsText = is_array($parsed['constraints']) 
@@ -217,8 +226,19 @@ class GenerateWeeklyQuestions extends Command
 
         if (isset($parsed['tests']) && is_array($parsed['tests'])) {
             foreach ($parsed['tests'] as $index => $test) {
-                $inputData[] = ['test_case' => $index + 1, 'input' => $test['input'] ?? []];
-                $expectedOutputData[] = ['test_case' => $index + 1, 'output' => $test['output'] ?? ''];
+                // Handle both string and array/object inputs
+                $inputVal = $test['input'] ?? '';
+                if (is_array($inputVal) || is_object($inputVal)) {
+                    $inputVal = json_encode($inputVal);
+                }
+                
+                $outputVal = $test['output'] ?? '';
+                if (is_array($outputVal) || is_object($outputVal)) {
+                    $outputVal = json_encode($outputVal);
+                }
+                
+                $inputData[] = ['test_case' => $index + 1, 'input' => $inputVal];
+                $expectedOutputData[] = ['test_case' => $index + 1, 'output' => $outputVal];
             }
         }
 
@@ -230,24 +250,33 @@ class GenerateWeeklyQuestions extends Command
                 "## Constraints\n$constraintsText\n\n" .
                 "## Expected Approach\n{$parsed['expected_approach']}";
 
-        return Question::create([
-            'title'             => $parsed['title'],
-            'function_name'     => $parsed['function_name'], 
-            'content'           => $content,
-            'description'       => $parsed['description'],
-            'problem_statement' => $parsed['problemStatement'],
-            'constraints'       => trim($constraintsText),
-            'expected_output'   => $expectedOutputData,
-            'answersData'       => $parsed['solution'],
-            'status'            => 'Pending',
-            'language'          => $language,
-            'level'             => $mappedLevel,
-            'questionCategory'  => 'learnerPractice',
-            'questionType'      => 'Code_Solution',
-            'chapter'           => $parsed['topic'],
-            'hint'              => $parsed['expected_approach'],
-            'input'             => $inputData,
-            'reviewer_ID'       => 1 
-        ]);
+        try {
+            return Question::create([
+                'title'             => $parsed['title'],
+                'function_name'     => $parsed['function_name'],
+                'return_type'       => $parsed['return_type'] ?? 'void',
+                'content'           => $content,
+                'description'       => $parsed['description'],
+                'problem_statement' => $parsed['problem_statement'], // Use snake_case
+                'constraints'       => trim($constraintsText),
+                'expected_output'   => $expectedOutputData,
+                'answersData'       => $parsed['solution'],
+                'status'            => 'Pending',
+                'language'          => $language,
+                'level'             => $mappedLevel,
+                'questionCategory'  => 'learnerPractice',
+                'questionType'      => 'Code_Solution',
+                'chapter'           => $parsed['topic'],
+                'hint'              => $parsed['expected_approach'],
+                'input'             => $inputData,
+                'reviewer_ID'       => 1 
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to save question', [
+                'error' => $e->getMessage(),
+                'title' => $parsed['title'] ?? 'Unknown'
+            ]);
+            return null;
+        }
     }
 }
