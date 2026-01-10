@@ -64,7 +64,8 @@ class Learner extends Authenticatable
     
     /**
      * Calculate current level based on total XP
-     * Uses quadratic formula: Level thresholds are 0, 40, 90, 160, 250, etc.
+     * Uses quadratic formula: Level thresholds are 40, 90, 160, 250, 360, 490, 640, etc.
+     * Formula: XP for Level N = 10 × N²
      * 
      * @return int Current level (minimum 1)
      */
@@ -72,18 +73,26 @@ class Learner extends Authenticatable
     {
         if ($this->totalPoint < 40) {
             return 1; // Level 1: 0-39 XP
-        } elseif ($this->totalPoint < 90) {
-            return 2; // Level 2: 40-89 XP
-        } elseif ($this->totalPoint < 160) {
-            return 3; // Level 3: 90-159 XP
-        } elseif ($this->totalPoint < 250) {
-            return 4; // Level 4: 160-249 XP
-        } elseif ($this->totalPoint < 360) {
-            return 5; // Level 5: 250-359 XP
-        } else {
-            // For higher levels, use the quadratic formula
-            // Level = floor(sqrt(XP / 10)) + 1
-            return floor(sqrt($this->totalPoint / self::LEVEL_CONSTANT)) + 1;
+        }
+        
+        // Find the highest level where the XP requirement is met
+        // Level N requires: 10 × N²
+        $level = 1;
+        while (true) {
+            $nextLevel = $level + 1;
+            $nextLevelXp = self::LEVEL_CONSTANT * ($nextLevel * $nextLevel);
+            
+            // If we don't have enough XP for the next level, we're at current level
+            if ($this->totalPoint < $nextLevelXp) {
+                return $level;
+            }
+            
+            $level++;
+            
+            // Safety check to prevent infinite loop (max level 100)
+            if ($level >= 100) {
+                return 100;
+            }
         }
     }
     

@@ -110,7 +110,7 @@
                 <div class="stat-progress">
                     <div class="stat-progress-bar" style="width: {{ min($xpProgress, 100) }}%"></div>
                 </div>
-                <div class="stat-footer">{{ 100-number_format($xpProgress, 0) }}% to Level {{ $currentLevel + 1 }}</div>
+                <div class="stat-footer">{{ number_format(max(100 - $xpProgress, 0), 0) }}% to Level {{ $currentLevel + 1 }}</div>
             </div>
 
             <!-- XP Points -->

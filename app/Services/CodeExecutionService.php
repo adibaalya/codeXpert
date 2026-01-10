@@ -9,8 +9,15 @@ class CodeExecutionService
 {
     /**
      * Execute user code with test cases - IDE-like behavior (no driver script)
+     * 
+     * @param string $userCode The user's submitted code
+     * @param string $language The programming language
+     * @param mixed $testInput The test input data
+     * @param string|null $functionName Optional function name to execute
+     * @param array $parameters Optional parameters
+     * @param bool $debug If true, return the generated driver script instead of executing
      */
-    public function executeCode($userCode, $language, $testInput, $functionName = null, $parameters = [])
+    public function executeCode($userCode, $language, $testInput, $functionName = null, $parameters = [], $debug = false)
     {
         try {
             // Check if user wants complete program execution (default for most cases)
@@ -23,6 +30,16 @@ class CodeExecutionService
             } else {
                 // Use driver script for function-based testing
                 $runnableCode = $this->buildDriverScript($userCode, $testInput, $language, $functionName, $parameters);
+            }
+            
+            // DEBUG MODE: Return the generated driver script instead of executing
+            if ($debug) {
+                return [
+                    'success' => true,
+                    'output' => $runnableCode,
+                    'debug_mode' => true,
+                    'use_complete_program' => $useCompleteProgram
+                ];
             }
             
             // Map language names to script-friendly names
@@ -493,39 +510,44 @@ class CodeExecutionService
         return $data;
     }
 
-    /**
-     * Build Python driver script
-     * Example output:
-     * job_durations = [10, 5, 15, 20]
-     * num_workers = 2
-     * max_worker_load = 35
-     * 
-     * [user's function code]
-     * 
-     * print(solve_job(job_durations, num_workers, max_worker_load))
-     */
     private function buildPythonDriver($userCode, $inputData, $functionName, $parameters)
     {
         $script = "# Driver Script\nimport json\n\n";
         
-        // 1. Filter parameters to include ONLY what the function needs
-        // We remove metadata that should not be passed as arguments
         $metadataKeys = ['test_case', 'input', 'output', 'expected'];
         $actualParams = array_filter(array_keys($inputData), function($k) use ($metadataKeys) {
             return !in_array($k, $metadataKeys);
         });
 
-        // 2. Inject Variables
+        // --- FIX: Group numeric keys back into a single list if necessary ---
+        $isNumericList = true;
         foreach ($actualParams as $key) {
-            $script .= $this->formatPythonVariable($key, $inputData[$key]) . "\n";
+            if (!is_numeric($key)) {
+                $isNumericList = false;
+                break;
+            }
+        }
+
+        if ($isNumericList && !empty($actualParams)) {
+            // If all keys are numeric, it's a single list being passed to the function
+            $listValues = [];
+            foreach ($actualParams as $key) {
+                $listValues[] = $inputData[$key];
+            }
+            $script .= "scores = " . json_encode($listValues) . "\n";
+            $paramsList = "scores";
+        } else {
+            // Standard variable injection
+            foreach ($actualParams as $key) {
+                $script .= $this->formatPythonVariable($key, $inputData[$key]) . "\n";
+            }
+            $paramsList = implode(', ', $actualParams);
         }
         
         $script .= "\n# User Code\n" . $userCode . "\n\n";
         
-        // 3. Detect Class and Function
+        // Detect Class and Function
         $hasClass = preg_match('/^\s*class\s+(\w+)/m', $userCode, $classMatch);
-        $className = $hasClass ? $classMatch[1] : 'Solution';
-        
         if (!$functionName) {
             if ($hasClass && preg_match('/^\s{4,}def\s+(\w+)\s*\(/m', $userCode, $methodMatch)) {
                 $functionName = $methodMatch[1];
@@ -534,17 +556,15 @@ class CodeExecutionService
             }
         }
 
-        // 4. Execution Block
         if ($functionName) {
-            $paramsList = implode(', ', $actualParams);
             $script .= "# Execution\n";
             if ($hasClass) {
+                $className = $classMatch[1];
                 $script .= "sol = {$className}()\n";
                 $script .= "result = sol.{$functionName}({$paramsList})\n";
             } else {
                 $script .= "result = {$functionName}({$paramsList})\n";
             }
-            
             $script .= "print(json.dumps(result) if isinstance(result, (dict, list)) else result)\n";
         }
         
@@ -576,93 +596,55 @@ class CodeExecutionService
     {
         $script = "// Driver Script\n";
         
-        // 1. Inject Variables
-        // Filter out metadata
+        // 1. Filter out metadata
         $actualParams = array_filter(array_keys($inputData), function($k) {
-            return !in_array($k, ['test_case', 'input', 'output']);
+            return !in_array($k, ['test_case', 'input', 'output', 'expected']);
         });
 
+        // 2. Check if the input is a numeric list (like 0, 1, 2, 3)
+        $isNumericList = true;
         foreach ($actualParams as $key) {
-            $script .= $this->formatJavaScriptVariable($key, $inputData[$key]) . "\n";
-        }
-        
-        $script .= "\n// --- USER CODE START ---\n";
-        $script .= $userCode . "\n";
-        $script .= "// --- USER CODE END ---\n\n";
-        
-        // 2. Auto-Detect Function Name (Enhanced for Arrow Functions)
-        if (!$functionName) {
-            // Priority 1: Standard function 'function solve('
-            if (preg_match('/function\s+(\w+)\s*\(/', $userCode, $matches)) {
-                $functionName = $matches[1];
-            } 
-            // Priority 2: Arrow/Variable function 'const solve = (' or 'var solve = function'
-            elseif (preg_match('/(?:const|let|var)\s+(\w+)\s*=\s*(?:function|\(?[\w\s,]*\)?\s*=>)/', $userCode, $matches)) {
-                $functionName = $matches[1];
-            }
-            // Priority 3: Class method (LeetCode style)
-            elseif (preg_match('/class\s+Solution/', $userCode)) {
-                $functionName = "solve"; // Default assumption for class, requires instantiation logic below
+            if (!is_numeric($key)) {
+                $isNumericList = false;
+                break;
             }
         }
 
-        // 3. Execution Block with Try/Catch
-        $script .= "// --- EXECUTION ---\n";
-        $script .= "try {\n";
-        
-        $paramsList = implode(', ', $actualParams);
-        
-        // Handle Class-based solutions (LeetCode)
-        if (preg_match('/class\s+Solution/', $userCode)) {
-             // Try to find the method name inside the class
-             if (preg_match('/(\w+)\s*\(/', $userCode, $methodMatch)) {
-                 // This is a naive check, might grab constructor. 
-                 // Better to default to 'solve' or 'maxProfit' type names if passed explicitly.
-                 // For now, we assume the user provided functionName or we guess 'solve'
-                 $methodToCall = $functionName ?: 'solve'; 
-             } else {
-                 $methodToCall = 'solve';
-             }
-             
-             $script .= "    const solution = new Solution();\n";
-             // check if method exists
-             $script .= "    if (typeof solution.{$methodToCall} === 'function') {\n";
-             $script .= "        const result = solution.{$methodToCall}({$paramsList});\n";
-             $script .= "        printResult(result);\n";
-             $script .= "    } else {\n";
-             $script .= "        console.log('Error: Method {$methodToCall} not found in Solution class');\n";
-             $script .= "    }\n";
-        } 
-        // Handle Standard Functions
-        else if ($functionName) {
-            $script .= "    if (typeof {$functionName} === 'function') {\n";
-            $script .= "        const result = {$functionName}({$paramsList});\n";
-            $script .= "        printResult(result);\n";
-            $script .= "    } else {\n";
-            $script .= "        console.log('Error: Function {$functionName} not found.');\n";
-            $script .= "    }\n";
+        $paramsList = "";
+        if ($isNumericList && !empty($actualParams)) {
+            // Group all values into one array to pass as a single argument
+            $listValues = [];
+            foreach ($actualParams as $key) {
+                $listValues[] = $inputData[$key];
+            }
+            $script .= "const input_arg = " . json_encode($listValues) . ";\n";
+            $paramsList = "input_arg";
         } else {
-            $script .= "    console.log('Error: No function detected.');\n";
+            // Standard logic for named variables (e.g., tags = [...])
+            $cleanNames = [];
+            foreach ($actualParams as $key) {
+                $validName = is_numeric($key) ? "var_" . $key : $key;
+                $cleanNames[] = $validName;
+                $script .= $this->formatJavaScriptVariable($validName, $inputData[$key]) . "\n";
+            }
+            $paramsList = implode(', ', $cleanNames);
         }
         
-        $script .= "} catch (error) {\n";
-        $script .= "    console.log('Runtime Error: ' + error.message);\n";
-        $script .= "}\n\n";
+        $script .= "\n// --- USER CODE ---\n" . $userCode . "\n\n";
 
-        // 4. Helper for Printing (Ensures Objects/Arrays are visible)
-        $script .= "function printResult(val) {\n";
-        $script .= "    if (val === undefined) {\n";
-        $script .= "        console.log('undefined');\n";
-        $script .= "    } else if (val === null) {\n";
-        $script .= "        console.log('null');\n";
-        $script .= "    } else if (typeof val === 'object') {\n";
-        $script .= "        // JSON.stringify ensures arrays/objects are printed fully on one line\n";
-        $script .= "        console.log(JSON.stringify(val));\n";
-        $script .= "    } else {\n";
-        $script .= "        console.log(val);\n";
-        $script .= "    }\n";
-        $script .= "}\n";
-        
+        // 3. Execution Block
+        $script .= "try {\n";
+        if (preg_match('/class\s+Solution/', $userCode)) {
+            $script .= "    const sol = new Solution();\n";
+            $method = $functionName ?: 'mostFrequentTag';
+            $script .= "    console.log(JSON.stringify(sol.{$method}({$paramsList})));\n";
+        } else {
+            $func = $functionName ?: 'mostFrequentTag';
+            $script .= "    const result = {$func}({$paramsList});\n";
+            $script .= "    console.log(typeof result === 'object' ? JSON.stringify(result) : result);\n";
+        }
+        $script .= "} catch (e) { console.log('Error: ' + e.message); }\n";
+
         return $script;
     }
 
@@ -685,14 +667,11 @@ class CodeExecutionService
     }
 
     /**
-     * Build Java driver script - Optimized for LeetCode style
-     */
-    /**
-     * Build Java driver script - Optimized for LeetCode style
+     * Build Java driver script - Final Version with Dynamic Type Support (String/Int/2D)
      */
     private function buildJavaDriver($userCode, $inputData, $functionName, $parameters)
     {
-        // 1. Handle Raw Input Parsing (Same as before)
+        // 1. Handle Raw Input Parsing
         $hasRawInput = isset($inputData['input']) && is_string($inputData['input']);
         if ($hasRawInput) {
             $parsedVars = $this->parseVariableString($inputData['input']);
@@ -701,6 +680,7 @@ class CodeExecutionService
                 unset($inputData['input']);
             }
         }
+        
         unset($inputData['test_case']);
         unset($inputData['expected']);
 
@@ -713,20 +693,16 @@ class CodeExecutionService
         }
         
         // 3. Start Script Generation
-        $script = "";
-        $script .= "import java.util.*;\n"; 
-        $script .= "import java.util.stream.*;\n"; 
+        $script = "import java.util.*;\n";
+        $script .= "import java.util.stream.*;\n";
         foreach ($imports as $import) {
             if (stripos($import, 'java.util') === false) {
                 $script .= trim($import) . "\n";
             }
         }
-        $script .= "\n";
-
-        $script .= "public class Main {\n";
+        $script .= "\npublic class Main {\n";
         
-        // === NEW HELPER METHOD FOR PRINTING ARRAYS ===
-        $script .= "    // Helper to print arrays correctly (fixes [I@... output)\n";
+        // Helper method for printing results
         $script .= "    public static void printResult(Object o) {\n";
         $script .= "        if (o == null) { \n";
         $script .= "            System.out.println(\"null\");\n";
@@ -737,29 +713,63 @@ class CodeExecutionService
         $script .= "        } else if (o instanceof boolean[]) { \n";
         $script .= "            System.out.println(Arrays.toString((boolean[]) o));\n";
         $script .= "        } else if (o instanceof Object[]) { \n";
-        $script .= "            // Handles String[], Integer[], and 2D arrays like int[][]\n";
         $script .= "            System.out.println(Arrays.deepToString((Object[]) o));\n";
         $script .= "        } else { \n";
         $script .= "            System.out.println(o);\n";
         $script .= "        }\n";
         $script .= "    }\n\n";
-        // =============================================
 
         $script .= "    public static void main(String[] args) {\n";
         $script .= "        try {\n";
         
         $actualParams = array_keys($inputData);
+        $paramString = "";
 
-        // Generate Variable Definitions
+        // 4. Logic: Check for Numeric Sequence (Raw List)
+        $isNumericList = true;
         foreach ($actualParams as $key) {
-            $value = $inputData[$key];
-            $script .= "            " . $this->formatJavaVariableAdvanced($key, $value) . "\n";
+            if (!is_numeric($key)) {
+                $isNumericList = false;
+                break;
+            }
+        }
+
+        if ($isNumericList && !empty($actualParams)) {
+            $firstValue = reset($inputData);
+            
+            // --- DYNAMIC TYPE INFERENCE ---
+            if (is_array($firstValue)) {
+                $javaType = "int[][]";
+            } elseif (is_string($firstValue)) {
+                $javaType = "String[]";
+            } else {
+                $javaType = "int[]";
+            }
+
+            $formattedValues = array_map(function($v) {
+                if (is_array($v)) return "new int[] {" . implode(', ', $v) . "}";
+                if (is_bool($v)) return $v ? "true" : "false";
+                return is_string($v) ? '"' . addslashes($v) . '"' : $v;
+            }, array_values($inputData));
+
+            $values = implode(', ', $formattedValues);
+            $script .= "            {$javaType} input_array = {{$values}};\n";
+            $paramString = "input_array";
+        } else {
+            $cleanParamNames = [];
+            foreach ($actualParams as $key) {
+                $validName = is_numeric($key) ? "input_" . $key : $key;
+                $cleanParamNames[] = $validName;
+                $value = $inputData[$key];
+                $script .= "            " . $this->formatJavaVariableAdvanced($validName, $value) . "\n";
+            }
+            $paramString = implode(', ', $cleanParamNames);
         }
 
         $script .= "\n";
 
-        // Detect Class & Method Name
-        $className = "Solution"; 
+        // 5. Detect Class & Method Name
+        $className = "Solution";
         if (preg_match('/\bclass\s+(\w+)/', $codeWithoutImports, $matches)) {
             $className = $matches[1];
         }
@@ -769,23 +779,13 @@ class CodeExecutionService
             if (preg_match('/public\s+[\w<>\[\]]+\s+(\w+)\s*\(/', $codeWithoutImports, $matches)) {
                 $methodName = $matches[1];
             } else {
-                $methodName = "solve"; 
+                $methodName = "solve";
             }
         }
 
-        // Instantiate and Call
+        // 6. Instantiate and Call
         $script .= "            {$className} sol = new {$className}();\n";
-        
-        $paramNames = implode(', ', $actualParams);
-        
-        if (empty($actualParams)) {
-             $script .= "            System.out.println(\"Error: No input variables found.\");\n";
-        }
-
-        // Execute
-        $script .= "            Object result = sol.{$methodName}({$paramNames});\n";
-        
-        // Use the new helper to print
+        $script .= "            Object result = sol.{$methodName}({$paramString});\n";
         $script .= "            printResult(result);\n";
 
         $script .= "        } catch (Exception e) {\n";
@@ -1310,115 +1310,86 @@ class CodeExecutionService
      */
     private function buildCDriver($userCode, $inputData, $functionName, $parameters)
     {
+        // 1. Setup essential C headers
         $script = "#include <stdio.h>\n";
         $script .= "#include <stdlib.h>\n";
         $script .= "#include <string.h>\n";
-        $script .= "#include <stdbool.h>\n";
+        $script .= "#include <stdbool.h>\n"; // Required for 'bool' type
         $script .= "#include <math.h>\n\n";
         
         $script .= "// --- USER CODE START ---\n";
         $script .= $userCode . "\n";
         
-        // --- FIX 1: Auto-close missing braces ---
+        // Automatically close missing braces to prevent "unexpected end of file"
         $openBraces = substr_count($userCode, '{');
         $closeBraces = substr_count($userCode, '}');
         if ($openBraces > $closeBraces) {
-            $needed = $openBraces - $closeBraces;
-            $script .= "\n" . str_repeat("}\n", $needed);
+            $script .= "\n" . str_repeat("}\n", $openBraces - $closeBraces);
         }
-        
         $script .= "// --- USER CODE END ---\n\n";
-        
-        // 1. Auto-Detect Function Signature
+
+        // 2. Identify the Function and Return Type
         $returnType = 'int'; 
-        
         if (!$functionName) {
-            // Find function definition (heuristic: first function that isn't main)
-            if (preg_match('/^\s*((?:const\s+)?(?:unsigned\s+)?\w+(?:\s*\*)*)\s+(\w+)\s*\(/m', $userCode, $matches)) {
-                $returnType = trim($matches[1]);
-                $functionName = $matches[2];
+            // Flexible regex to find functions even if they are indented
+            if (preg_match('/(?:\w+\s+){0,2}\w+(?:\s*\*+)?\s+([a-zA-Z_]\w*)\s*\(/', $userCode, $matches)) {
+                $functionName = $matches[1];
+                // Capture the specific return type (e.g., char*, double, bool)
+                preg_match('/((?:[a-zA-Z_]\w*\s+){1,2}(?:\*+)?)\s*' . preg_quote($functionName, '/') . '/', $userCode, $typeMatch);
+                $returnType = isset($typeMatch[1]) ? trim($typeMatch[1]) : 'int';
             }
         } else {
-            // If function name is known, find its specific return type
-            if (preg_match('/^\s*((?:const\s+)?(?:unsigned\s+)?\w+(?:\s*\*)*)\s+' . preg_quote($functionName, '/') . '\s*\(/m', $userCode, $matches)) {
+            // If functionName is already known, find its return type in the code
+            if (preg_match('/((?:[a-zA-Z_]\w*\s+){1,2}(?:\*+)?)\s*' . preg_quote($functionName, '/') . '/', $userCode, $matches)) {
                 $returnType = trim($matches[1]);
             }
         }
 
         $script .= "int main() {\n";
         
-        // 2. Inject Variables
+        // 3. Prepare Input Variables (excluding metadata)
         $actualParams = array_filter(array_keys($inputData), function($k) {
-            return !in_array($k, ['test_case', 'input', 'output']);
+            return !in_array($k, ['test_case', 'input', 'output', 'expected']);
         });
 
+        // 4. Inject Variables with Safety for Numeric Keys
+        $cleanParamNames = [];
         foreach ($actualParams as $key) {
-            $value = $inputData[$key];
-            $script .= "    " . $this->formatCVariable($key, $value) . "\n";
+            // Prefix numeric keys (like 0, 1) with 'var_' to make them valid C names
+            $varName = is_numeric($key) ? "var_" . $key : $key;
+            $cleanParamNames[] = $varName;
+            $script .= "    " . $this->formatCVariable($varName, $inputData[$key]) . "\n";
         }
         
-        // 3. Call Function & Print Result
+        // 5. Execute and Print Result
         if ($functionName) {
-            $paramsList = implode(', ', $actualParams);
-            $cleanType = str_replace(' ', '', $returnType); // Remove spaces for easier checking (e.g. "int *")
-            
-            // A. Handle Void Return
+            // Join the cleaned variable names for the function call (e.g., var_0)
+            $paramsList = implode(', ', $cleanParamNames);
+            $cleanType = str_replace(' ', '', $returnType);
+
             if ($returnType === 'void') {
                 $script .= "    {$functionName}({$paramsList});\n";
-                $script .= "    printf(\"Function executed (void return).\\n\");\n";
-            } 
-            // B. Handle Known Types
-            else {
+                $script .= "    printf(\"void\");\n";
+            } else {
                 $script .= "    {$returnType} result = {$functionName}({$paramsList});\n";
                 
-                // Helper to check for pointers (look for *)
-                $isPointer = strpos($returnType, '*') !== false;
-                
-                if ($isPointer) {
-                     // --- FIX 2: Enhanced Pointer Handling ---
-                     
-                     // Case: String (char*)
-                     if (strpos($cleanType, 'char*') !== false) {
-                         $script .= "    if (result) printf(\"%s\", result); else printf(\"null\");\n";
-                     } 
-                     // Case: Integer Array (int*)
-                     elseif (strpos($cleanType, 'int*') !== false) {
-                         // Heuristic to guess array size for printing
-                         $sizeExpr = "10"; // Fallback
-                         if (in_array('sizeA', $actualParams) && in_array('sizeB', $actualParams)) {
-                             $sizeExpr = "sizeA + sizeB";
-                         } elseif (in_array('n', $actualParams)) {
-                             $sizeExpr = "n";
-                         }
-
-                         $script .= "    printf(\"[\");\n";
-                         // Protect against null pointer before looping
-                         $script .= "    if (result == NULL) { printf(\"null\"); } else {\n";
-                         $script .= "        for(int i=0; i < ({$sizeExpr}); i++) {\n";
-                         $script .= "            printf(\"%d\", result[i]);\n";
-                         $script .= "            if (i < ({$sizeExpr}) - 1) printf(\", \");\n";
-                         $script .= "        }\n";
-                         $script .= "    }\n";
-                         $script .= "    printf(\"]\");\n";
-                     }
-                     else {
-                         // Default Pointer Address
-                         $script .= "    printf(\"Result Pointer: %p\", (void*)result);\n";
-                     }
-                }
-                elseif ($returnType === 'bool') {
-                    $script .= "    printf(result ? \"true\" : \"false\");\n";
-                }
-                elseif (strpos($returnType, 'float') !== false || strpos($returnType, 'double') !== false) {
-                    $script .= "    printf(\"%.5f\", result);\n";
-                }
-                else {
-                    // Default to int
+                // Format output based on the detected Return Type
+                if (strpos($returnType, '*') !== false) {
+                    if (strpos($cleanType, 'char*') !== false) {
+                        $script .= "    if (result) printf(\"%s\", result); else printf(\"null\");\n";
+                    } else {
+                        $script .= "    printf(\"%p\", (void*)result);\n";
+                    }
+                } elseif ($returnType === 'bool' || $returnType === '_Bool') {
+                    $script .= "    printf(result ? \"1\" : \"0\");\n"; // Matches expected output 1/0
+                } elseif (strpos($returnType, 'float') !== false || strpos($returnType, 'double') !== false) {
+                    $script .= "    printf(\"%.2f\", result);\n";
+                } else {
                     $script .= "    printf(\"%d\", result);\n";
                 }
             }
         } else {
-             $script .= "    printf(\"Error: Could not detect function name in C code.\\n\");\n";
+            $script .= "    printf(\"Error: Function detection failed.\\n\");\n";
         }
         
         $script .= "\n    return 0;\n";
