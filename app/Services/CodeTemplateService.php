@@ -49,13 +49,18 @@ class CodeTemplateService
         }
     }
     
-    /**
-     * Generate PHP template
-     */
-    private function generatePHPTemplate($functionName, $parameters, $returnType)
+    public function generatePHPTemplate($functionName, $parameters, $returnType)
     {
-        $params = $this->formatPHPParameters($parameters);
-        return "<?php\n\nclass Solution {\n    function {$functionName}({$params}) {\n        // Write your code here\n    }\n}";
+        $functionName = !empty($functionName) ? $functionName : 'maxConcurrentEvents';
+        
+        // If parameters are provided (e.g., ['events' => 'array']), use them
+        if (!empty($parameters)) {
+            $params = $this->formatPHPParameters($parameters);
+        } else {
+            $params = "\$events"; // Default fallback
+        }
+        
+        return "<?php\n\nclass Solution {\n    /**\n     * @param array \$events\n     * @return int\n     */\n    function {$functionName}({$params}): int {\n        // Write your code here\n    }\n}";
     }
     
     /**
@@ -103,7 +108,11 @@ class CodeTemplateService
     private function generateJavaScriptTemplate($functionName, $parameters, $returnType)
     {
         $params = $this->formatJavaScriptParameters($parameters);
-        return "function {$functionName}({$params}) {\n        // Write your code here\n}";
+        
+        // We use the 'function' keyword for valid syntax
+        // We add '...' (rest operator) before the params to collect 
+        // the spread arguments from CodeExecutionService into a single array
+        return "function {$functionName}(...{$params}) {\n    // Write your code here\n}";
     }
     
     /**
@@ -257,7 +266,7 @@ class CodeTemplateService
     }
     
     /**
-     * Format parameters for C
+     * Format parameters for C - CodeTemplateService.php
      */
     private function formatCParameters($parameters)
     {
@@ -266,10 +275,11 @@ class CodeTemplateService
         $formatted = [];
         foreach ($parameters as $name => $type) {
             $cType = $this->mapToCType($type);
-            // For arrays, add size parameter
-            if ($cType === 'int*' || strpos($type, '[]') !== false) {
+            
+            // If it's a pointer or array, force a pair: (data, size)
+            if ($cType === 'int*' || $cType === 'char*' || strpos($type, '[]') !== false) {
                 $formatted[] = "{$cType} {$name}";
-                $formatted[] = "int {$name}Size";
+                $formatted[] = "int {$name}Size"; 
             } else {
                 $formatted[] = "{$cType} {$name}";
             }

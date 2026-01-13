@@ -311,6 +311,7 @@ Route::middleware(['auth:reviewer'])->prefix('reviewer')->group(function () {
     // Question Generator
     Route::get('/generate', [QuestionGeneratorController::class, 'showGeneratePage'])->name('reviewer.generate');
     Route::post('/generate/question', [QuestionGeneratorController::class, 'generateQuestion'])->name('reviewer.generate.question');
+    Route::post('/generate/leetcode', [QuestionGeneratorController::class, 'fetchLeetCodeQuestion'])->name('reviewer.generate.leetcode');
     Route::post('/generate/save', [QuestionGeneratorController::class, 'saveQuestion'])->name('reviewer.generate.save');
     
     // Competency Test Routes

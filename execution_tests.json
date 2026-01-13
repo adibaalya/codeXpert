@@ -1,177 +1,81 @@
 {
   "test_cases": [
     {
-      "name": "Python - Standalone Function with List",
-      "language": "python",
-      "user_code": "def sum_array(numbers):\n    return sum(numbers)",
-      "test_input": {
-        "numbers": [1, 2, 3, 4, 5]
-      },
-      "expected_output": "15"
-    },
-    {
-      "name": "Python - Class-based Solution (LeetCode Style)",
-      "language": "python",
-      "user_code": "class Solution:\n    def twoSum(self, nums, target):\n        seen = {}\n        for i, num in enumerate(nums):\n            complement = target - num\n            if complement in seen:\n                return [seen[complement], i]\n            seen[num] = i\n        return []",
-      "test_input": {
-        "nums": [2, 7, 11, 15],
-        "target": 9
-      },
-      "expected_output": "[0, 1]"
-    },
-    {
-      "name": "JavaScript - Arrow Function with Raw Array (Numeric Keys)",
+      "name": "JavaScript - Numeric Keys (Auto-Spread)",
       "language": "javascript",
-      "user_code": "const sumArray = (arr) => arr.reduce((sum, num) => sum + num, 0);",
+      "user_code": "function addThree(a, b, c) {\n    return a + b + c;\n}",
       "test_input": {
-        "0": 10,
-        "1": 20,
-        "2": 30,
-        "3": 40
+        "0": 1.5,
+        "1": 2.5,
+        "2": 3.0
       },
-      "expected_output": "100"
+      "expected_output": "7"
     },
     {
-      "name": "JavaScript - Class Solution with Array",
+      "name": "JavaScript - Class with Nested Object Input",
       "language": "javascript",
-      "user_code": "class Solution {\n    mostFrequentTag(tags) {\n        const freq = {};\n        let maxTag = tags[0];\n        let maxCount = 0;\n        \n        for (const tag of tags) {\n            freq[tag] = (freq[tag] || 0) + 1;\n            if (freq[tag] > maxCount) {\n                maxCount = freq[tag];\n                maxTag = tag;\n            }\n        }\n        return maxTag;\n    }\n}",
-      "test_input": {
-        "tags": ["javascript", "python", "javascript", "java", "python", "javascript"]
-      },
-      "expected_output": "\"javascript\""
-    },
-    {
-      "name": "C - Function with const char* (String/Pointer Handling)",
-      "language": "c",
-      "user_code": "#include <string.h>\n\nconst char* greet(const char* name) {\n    static char buffer[100];\n    sprintf(buffer, \"Hello, %s!\", name);\n    return buffer;\n}",
-      "test_input": {
-        "name": "World"
-      },
-      "expected_output": "Hello, World!"
-    },
-    {
-      "name": "C - Boolean Return Type",
-      "language": "c",
-      "user_code": "#include <stdbool.h>\n\nbool isEven(int num) {\n    return num % 2 == 0;\n}",
-      "test_input": {
-        "num": 42
-      },
-      "expected_output": "1"
-    },
-    {
-      "name": "C - Array with Empty Input (Zero-size Safety)",
-      "language": "c",
-      "user_code": "int sumArray(int arr[], int size) {\n    int sum = 0;\n    for (int i = 0; i < size; i++) {\n        sum += arr[i];\n    }\n    return sum;\n}",
-      "test_input": {
-        "arr": [],
-        "size": 0
-      },
-      "expected_output": "0"
-    },
-    {
-      "name": "C++ - Class Solution with std::round (Math Header)",
-      "language": "c++",
-      "user_code": "#include <cmath>\n#include <vector>\nusing namespace std;\n\nclass Solution {\npublic:\n    vector<int> roundNumbers(vector<double> nums) {\n        vector<int> result;\n        for (double num : nums) {\n            result.push_back(static_cast<int>(std::round(num)));\n        }\n        return result;\n    }\n};",
-      "test_input": {
-        "nums": [1.2, 2.7, 3.5, 4.1]
-      },
-      "expected_output": "[1,3,4,4]"
-    },
-    {
-      "name": "C++ - 2D Vector with Nested Arrays",
-      "language": "c++",
-      "user_code": "#include <vector>\nusing namespace std;\n\nclass Solution {\npublic:\n    vector<vector<int>> transpose(vector<vector<int>> matrix) {\n        int m = matrix.size();\n        int n = matrix[0].size();\n        vector<vector<int>> result(n, vector<int>(m));\n        \n        for (int i = 0; i < m; i++) {\n            for (int j = 0; j < n; j++) {\n                result[j][i] = matrix[i][j];\n            }\n        }\n        return result;\n    }\n};",
-      "test_input": {
-        "matrix": [[1, 2, 3], [4, 5, 6]]
-      },
-      "expected_output": "[[1,4],[2,5],[3,6]]"
-    },
-    {
-      "name": "Java - Method Returning 2D int[][] Array",
-      "language": "java",
-      "user_code": "class Solution {\n    public int[][] generate2DArray(int rows, int cols) {\n        int[][] result = new int[rows][cols];\n        int counter = 1;\n        for (int i = 0; i < rows; i++) {\n            for (int j = 0; j < cols; j++) {\n                result[i][j] = counter++;\n            }\n        }\n        return result;\n    }\n}",
-      "test_input": {
-        "rows": 2,
-        "cols": 3
-      },
-      "expected_output": "[[1, 2, 3], [4, 5, 6]]"
-    },
-    {
-      "name": "Java - Primitive int[] Array Return",
-      "language": "java",
-      "user_code": "class Solution {\n    public int[] doubleArray(int[] nums) {\n        int[] result = new int[nums.length];\n        for (int i = 0; i < nums.length; i++) {\n            result[i] = nums[i] * 2;\n        }\n        return result;\n    }\n}",
-      "test_input": {
-        "nums": [1, 2, 3, 4, 5]
-      },
-      "expected_output": "[2, 4, 6, 8, 10]"
-    },
-    {
-      "name": "Java - Map with Nested Lists",
-      "language": "java",
-      "user_code": "import java.util.*;\n\nclass Solution {\n    public List<String> getCategory(Map<String, List<String>> data, String key) {\n        return data.getOrDefault(key, new ArrayList<>());\n    }\n}",
+      "user_code": "class Solution {\n    getUserCity(data) {\n        return data.address.city;\n    }\n}",
       "test_input": {
         "data": {
-          "fruits": ["apple", "banana"],
-          "veggies": ["carrot", "broccoli"]
-        },
-        "key": "fruits"
+          "id": 1,
+          "address": {
+            "city": "Kuala Lumpur",
+            "zip": 43300
+          }
+        }
       },
-      "expected_output": "[apple, banana]"
+      "expected_output": "\"Kuala Lumpur\""
     },
     {
-      "name": "PHP - Class Method with Array Return",
-      "language": "php",
-      "user_code": "<?php\nclass Solution {\n    public function reverseArray($arr) {\n        return array_reverse($arr);\n    }\n}",
-      "test_input": {
-        "arr": [1, 2, 3, 4, 5]
-      },
-      "expected_output": "[5,4,3,2,1]"
-    },
-    {
-      "name": "PHP - String Manipulation",
-      "language": "php",
-      "user_code": "<?php\nfunction capitalizeWords($str) {\n    return ucwords($str);\n}",
-      "test_input": {
-        "str": "hello world"
-      },
-      "expected_output": "Hello World"
-    },
-    {
-      "name": "C# - List Operations",
-      "language": "c#",
-      "user_code": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\n\nclass Solution {\n    public List<int> FilterEven(List<int> numbers) {\n        return numbers.Where(n => n % 2 == 0).ToList();\n    }\n}",
-      "test_input": {
-        "numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-      },
-      "expected_output": "[2, 4, 6, 8, 10]"
-    },
-    {
-      "name": "Python - Edge Case Empty Array",
-      "language": "python",
-      "user_code": "def find_max(numbers):\n    if not numbers:\n        return None\n    return max(numbers)",
-      "test_input": {
-        "numbers": []
-      },
-      "expected_output": "None"
-    },
-    {
-      "name": "JavaScript - Edge Case Single Element",
+      "name": "JavaScript - String with Newlines and Quotes",
       "language": "javascript",
-      "user_code": "const findMin = (arr) => Math.min(...arr);",
+      "user_code": "const countLines = (str) => str.split('\\n').length;",
       "test_input": {
-        "0": 42
+        "str": "First Line\nSecond Line\n\"Third Line\""
       },
-      "expected_output": "42"
+      "expected_output": "3"
     },
     {
-      "name": "C - Double/Float Return Type",
-      "language": "c",
-      "user_code": "double calculateAverage(int a, int b) {\n    return (a + b) / 2.0;\n}",
+      "name": "JavaScript - Boolean and Null Logic",
+      "language": "javascript",
+      "user_code": "function validate(val, isStrict) {\n    if (val === null && !isStrict) return \"Relaxed\";\n    return val === null ? \"Strict Null\" : \"Value\";\n}",
       "test_input": {
-        "a": 5,
-        "b": 10
+        "val": null,
+        "isStrict": false
       },
-      "expected_output": "7.50"
+      "expected_output": "\"Relaxed\""
+    },
+    {
+      "name": "JavaScript - Array of Objects (Mapping)",
+      "language": "javascript",
+      "user_code": "function getIds(users) {\n    return users.map(u => u.id);\n}",
+      "test_input": {
+        "users": [
+          {"id": 101, "name": "A"},
+          {"id": 102, "name": "B"}
+        ]
+      },
+      "expected_output": "[101,102]"
+    },
+    {
+      "name": "JavaScript - Float Precision Multiplication",
+      "language": "javascript",
+      "user_code": "const calculateTax = (price, rate) => Number((price * rate).toFixed(2));",
+      "test_input": {
+        "price": 19.99,
+        "rate": 0.06
+      },
+      "expected_output": "1.2"
+    },
+    {
+      "name": "JavaScript - Empty/Edge Cases",
+      "language": "javascript",
+      "user_code": "function checkEmpty(arr, obj) {\n    return arr.length === 0 && Object.keys(obj).length === 0;\n}",
+      "test_input": {
+        "arr": [],
+        "obj": {}
+      },
+      "expected_output": "true"
     }
   ]
 }
