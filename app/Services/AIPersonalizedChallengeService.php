@@ -7,6 +7,8 @@ use App\Models\Question;
 use App\Models\UserProficiency;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class AIPersonalizedChallengeService
@@ -242,7 +244,7 @@ class AIPersonalizedChallengeService
     }
     
     /**
-     * Select the optimal question based on learner's profile
+     * Select the optimal question based on learner's profile using AI-powered ranking
      * 
      * @param Learner $learner
      * @param array $proficiencyLevels
@@ -251,8 +253,256 @@ class AIPersonalizedChallengeService
      */
     private function selectOptimalQuestion(Learner $learner, array $proficiencyLevels, array $weakAreas)
     {
+        $geminiApiKey = env('GEMINI_API_KEY');
+        
+        // Try AI-powered selection if API key is available
+        if ($geminiApiKey) {
+            try {
+                $aiSelectedQuestion = $this->selectOptimalQuestionWithAI($learner, $proficiencyLevels, $weakAreas);
+                
+                if ($aiSelectedQuestion) {
+                    Log::info('AI-powered question selection successful', [
+                        'learner_id' => $learner->learner_ID,
+                        'selected_question_id' => $aiSelectedQuestion->question_ID,
+                        'question_title' => $aiSelectedQuestion->title
+                    ]);
+                    return $aiSelectedQuestion;
+                }
+            } catch (\Exception $e) {
+                Log::warning('AI question selection failed, falling back to rule-based', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+        
+        // Fallback to rule-based selection
+        return $this->selectOptimalQuestionRuleBased($learner, $proficiencyLevels, $weakAreas);
+    }
+    
+    /**
+     * AI-POWERED: Select optimal question using Gemini to rank candidates
+     * 
+     * @param Learner $learner
+     * @param array $proficiencyLevels
+     * @param array $weakAreas
+     * @return Question|null
+     */
+    private function selectOptimalQuestionWithAI(Learner $learner, array $proficiencyLevels, array $weakAreas): ?Question
+    {
+        // STEP 1: Get candidate questions (rule-based pre-filtering for efficiency)
+        $candidates = $this->getCandidateQuestions($learner, $proficiencyLevels, $weakAreas);
+        
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+        
+        // If only one candidate, return it directly (no need for AI ranking)
+        if ($candidates->count() === 1) {
+            return $candidates->first();
+        }
+        
+        // STEP 2: Ask AI to rank the candidates
+        $rankedQuestionId = $this->rankQuestionsWithAI($candidates, $learner, $weakAreas, $proficiencyLevels);
+        
+        if (!$rankedQuestionId) {
+            // If AI ranking fails, return first candidate
+            return $candidates->first();
+        }
+        
+        // STEP 3: Return the top-ranked question
+        return Question::find($rankedQuestionId);
+    }
+    
+    /**
+     * Get candidate questions for AI ranking (rule-based pre-filtering)
+     * 
+     * @param Learner $learner
+     * @param array $proficiencyLevels
+     * @param array $weakAreas
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    private function getCandidateQuestions(Learner $learner, array $proficiencyLevels, array $weakAreas)
+    {
+        // Get recently attempted questions (last 7 days)
+        $recentlyAttemptedIds = DB::table('attempts')
+            ->where('learner_ID', $learner->learner_ID)
+            ->where('dateAttempted', '>=', Carbon::now()->subDays(7))
+            ->pluck('question_ID')
+            ->toArray();
+        
+        $query = Question::where('status', 'Approved')
+            ->where('questionCategory', 'learnerPractice')
+            ->whereNotIn('question_ID', $recentlyAttemptedIds);
+        
+        // Priority 1: Questions addressing weak areas (if any)
+        if (!empty($weakAreas['languages']) || !empty($weakAreas['strugglingTopics'])) {
+            $weakCandidates = $query->clone()
+                ->when(!empty($weakAreas['languages']), function($q) use ($weakAreas) {
+                    return $q->whereIn('language', $weakAreas['languages']);
+                })
+                ->when(!empty($weakAreas['strugglingTopics']), function($q) use ($weakAreas) {
+                    return $q->orWhereIn('chapter', $weakAreas['strugglingTopics']);
+                })
+                ->limit(10) // Get top 10 candidates
+                ->get();
+            
+            if ($weakCandidates->isNotEmpty()) {
+                return $weakCandidates;
+            }
+        }
+        
+        // Priority 2: Questions in learner's proficient languages
+        if (!empty($proficiencyLevels)) {
+            $proficientCandidates = $query->clone()
+                ->whereIn('language', array_keys($proficiencyLevels))
+                ->limit(10)
+                ->get();
+            
+            if ($proficientCandidates->isNotEmpty()) {
+                return $proficientCandidates;
+            }
+        }
+        
+        // Priority 3: Any available questions
+        return $query->limit(10)->get();
+    }
+    
+    /**
+     * Use Gemini AI to rank candidate questions and return the best one
+     * 
+     * @param \Illuminate\Database\Eloquent\Collection $candidates
+     * @param Learner $learner
+     * @param array $weakAreas
+     * @param array $proficiencyLevels
+     * @return int|null Question ID of the best ranked question
+     */
+    private function rankQuestionsWithAI($candidates, Learner $learner, array $weakAreas, array $proficiencyLevels): ?int
+    {
+        $geminiApiKey = env('GEMINI_API_KEY');
+        
+        // Build learner profile summary
+        $weakLanguagesText = !empty($weakAreas['languages']) 
+            ? implode(', ', $weakAreas['languages']) 
+            : 'None';
+        
+        $strugglingTopicsText = !empty($weakAreas['strugglingTopics']) 
+            ? implode(', ', $weakAreas['strugglingTopics']) 
+            : 'None';
+        
+        $proficiencyText = '';
+        foreach ($proficiencyLevels as $lang => $profData) {
+            $proficiencyText .= "- {$lang}: {$profData['level']} ({$profData['xp']} XP)\n";
+        }
+        
+        if (empty($proficiencyText)) {
+            $proficiencyText = "- No proficiency data (new learner)";
+        }
+        
+        // Format candidate questions
+        $candidatesText = '';
+        foreach ($candidates as $index => $question) {
+            $candidatesText .= ($index + 1) . ". ID: {$question->question_ID}\n";
+            $candidatesText .= "   Title: {$question->title}\n";
+            $candidatesText .= "   Language: {$question->language}\n";
+            $candidatesText .= "   Topic: {$question->chapter}\n";
+            $candidatesText .= "   Difficulty: {$question->level}\n\n";
+        }
+        
+        // Build AI prompt for ranking
+        $prompt = <<<PROMPT
+You are an expert learning coach for CodeXpert. Your task is to select the BEST coding question for this learner from the candidates below.
+
+**Learner Profile:**
+- Weak Languages: {$weakLanguagesText}
+- Struggling Topics: {$strugglingTopicsText}
+- Current Proficiency:
+{$proficiencyText}
+- Average Accuracy (last 30 days): {$weakAreas['averageAccuracy']}%
+- Total Attempts (last 30 days): {$weakAreas['totalAttempts']}
+
+**Selection Criteria (Priority Order):**
+1. **Maximum Learning Impact** - Choose questions that address their weakest areas
+2. **Appropriate Difficulty** - Not too easy (boring) or too hard (frustrating)
+3. **Skill Progression** - Help them level up in their weakest skills
+4. **Engagement** - Keep them motivated and challenged
+
+**Available Questions:**
+{$candidatesText}
+
+**Instructions:**
+1. Analyze each question against the learner profile
+2. Consider their weak areas and proficiency levels
+3. Select the ONE question with the highest learning impact
+4. Respond with ONLY the question ID number (e.g., "42")
+
+Your response (question ID only):
+PROMPT;
+        
+        // Call Gemini API
+        $response = Http::timeout(20)
+            ->post("https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={$geminiApiKey}", [
+                'contents' => [[
+                    'parts' => [['text' => $prompt]]
+                ]],
+                'generationConfig' => [
+                    'temperature' => 0.3,  // Lower temperature for more deterministic selection
+                    'maxOutputTokens' => 50,  // Only need the question ID
+                    'topP' => 0.8,
+                    'topK' => 20
+                ]
+            ]);
+        
+        if ($response->successful()) {
+            $responseData = $response->json();
+            $aiText = $responseData['candidates'][0]['content']['parts'][0]['text'] ?? null;
+            
+            if ($aiText) {
+                // Extract question ID from response
+                $aiText = trim($aiText);
+                
+                // Try to extract number from response
+                if (preg_match('/\b(\d+)\b/', $aiText, $matches)) {
+                    $selectedQuestionId = (int) $matches[1];
+                    
+                    // Verify the selected question exists in candidates
+                    $selectedQuestion = $candidates->firstWhere('question_ID', $selectedQuestionId);
+                    
+                    if ($selectedQuestion) {
+                        Log::info('AI successfully ranked and selected question', [
+                            'selected_question_id' => $selectedQuestionId,
+                            'ai_response' => $aiText,
+                            'total_candidates' => $candidates->count()
+                        ]);
+                        return $selectedQuestionId;
+                    } else {
+                        Log::warning('AI selected invalid question ID', [
+                            'selected_id' => $selectedQuestionId,
+                            'ai_response' => $aiText
+                        ]);
+                    }
+                }
+            }
+        }
+        
+        Log::warning('AI ranking failed to return valid question ID', [
+            'response_status' => $response->status(),
+            'candidates_count' => $candidates->count()
+        ]);
+        
+        return null;
+    }
+    
+    /**
+     * RULE-BASED: Fallback selection when AI is unavailable
+     * 
+     * @param Learner $learner
+     * @param array $proficiencyLevels
+     * @param array $weakAreas
+     * @return Question|null
+     */
+    private function selectOptimalQuestionRuleBased(Learner $learner, array $proficiencyLevels, array $weakAreas): ?Question
+    {
         // Get questions attempted in the last 7 days to avoid immediate repetition
-        // But allow re-attempting older questions for practice
         $recentlyAttemptedIds = DB::table('attempts')
             ->where('learner_ID', $learner->learner_ID)
             ->where('dateAttempted', '>=', Carbon::now()->subDays(7))
@@ -320,7 +570,6 @@ class AIPersonalizedChallengeService
         if ($question) return $question;
         
         // Priority 6: If all questions were attempted recently, allow re-attempting
-        // This ensures learners always have challenges available
         if (!empty($proficiencyLevels)) {
             return $query->clone()
                 ->whereIn('language', array_keys($proficiencyLevels))
@@ -387,7 +636,7 @@ class AIPersonalizedChallengeService
     }
     
     /**
-     * Generate personalized description based on learner's profile
+     * Generate personalized description based on learner's profile using Gemini AI
      * 
      * @param Question $question
      * @param array $weakAreas
@@ -402,6 +651,166 @@ class AIPersonalizedChallengeService
         // Check if this addresses a weak area
         $isWeakLanguage = in_array($language, $weakAreas['languages'] ?? []);
         $isWeakTopic = in_array($topic, $weakAreas['strugglingTopics'] ?? []);
+        
+        // ===== AI-POWERED DESCRIPTION GENERATION =====
+        $geminiApiKey = env('GEMINI_API_KEY');
+        
+        if ($geminiApiKey) {
+            try {
+                $aiDescription = $this->generateAIDescription(
+                    $question, 
+                    $weakAreas, 
+                    $proficiencyLevels, 
+                    $isWeakLanguage, 
+                    $isWeakTopic
+                );
+                
+                if ($aiDescription) {
+                    Log::info('AI-generated personalized description', [
+                        'question_id' => $question->question_ID,
+                        'description_length' => strlen($aiDescription)
+                    ]);
+                    return $aiDescription;
+                }
+            } catch (\Exception $e) {
+                Log::error('AI description generation failed, using fallback', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+        
+        // ===== FALLBACK: RULE-BASED DESCRIPTION =====
+        return $this->getRuleBasedDescription($question, $weakAreas, $proficiencyLevels, $isWeakLanguage, $isWeakTopic);
+    }
+    
+    /**
+     * Generate AI-powered personalized description using Gemini
+     * 
+     * @param Question $question
+     * @param array $weakAreas
+     * @param array $proficiencyLevels
+     * @param bool $isWeakLanguage
+     * @param bool $isWeakTopic
+     * @return string|null
+     */
+    private function generateAIDescription(Question $question, array $weakAreas, array $proficiencyLevels, bool $isWeakLanguage, bool $isWeakTopic): ?string
+    {
+        $geminiApiKey = env('GEMINI_API_KEY');
+        $language = $question->language;
+        $topic = $question->chapter ?? 'programming concepts';
+        $difficulty = $question->level ?? 'intermediate';
+        
+        // Build learner profile context
+        $weakLanguagesText = !empty($weakAreas['languages']) 
+            ? implode(', ', $weakAreas['languages']) 
+            : 'None';
+        
+        $strugglingTopicsText = !empty($weakAreas['strugglingTopics']) 
+            ? implode(', ', $weakAreas['strugglingTopics']) 
+            : 'None';
+        
+        $proficiencyText = '';
+        foreach ($proficiencyLevels as $lang => $profData) {
+            $proficiencyText .= "- {$lang}: {$profData['level']} ({$profData['xp']} XP)\n";
+        }
+        
+        if (empty($proficiencyText)) {
+            $proficiencyText = "- No proficiency data yet (new learner)";
+        }
+        
+        // Determine recommendation reason
+        $recommendationReason = '';
+        if ($isWeakLanguage && $isWeakTopic) {
+            $recommendationReason = "This question addresses BOTH a weak language ({$language}) AND a struggling topic ({$topic}) for maximum learning impact.";
+        } elseif ($isWeakLanguage) {
+            $recommendationReason = "This question helps reinforce your weaker language ({$language}).";
+        } elseif ($isWeakTopic) {
+            $recommendationReason = "This question focuses on your struggling topic ({$topic}).";
+        } else {
+            $recommendationReason = "This question matches your current skill level and provides continuous practice.";
+        }
+        
+        // Build AI prompt
+        $prompt = <<<PROMPT
+You are a personalized learning coach for CodeXpert, an online coding platform. Generate a motivational and specific 2-3 sentence message recommending a coding challenge to a learner.
+
+**Learner Profile:**
+- Weak Languages: {$weakLanguagesText}
+- Struggling Topics: {$strugglingTopicsText}
+- Current Proficiency Levels:
+{$proficiencyText}
+- Average Accuracy (last 30 days): {$weakAreas['averageAccuracy']}%
+
+**Recommended Challenge:**
+- Title: {$question->title}
+- Language: {$language}
+- Topic/Chapter: {$topic}
+- Difficulty: {$difficulty}
+
+**Why This Challenge:**
+{$recommendationReason}
+
+**Instructions:**
+1. Write in a warm, encouraging, mentor-like tone
+2. Be SPECIFIC - reference their actual weak areas or proficiency level
+3. Explain WHY this challenge is perfect for them RIGHT NOW
+4. Keep it concise (2-3 sentences maximum)
+5. Make them feel motivated and excited to try it
+6. Do NOT use generic phrases like "Great for learning!" - be personal and specific
+
+Generate ONLY the recommendation message (no greetings, no signatures, no extra formatting).
+PROMPT;
+        
+        // Call Gemini API
+        $response = Http::timeout(15)
+            ->post("https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={$geminiApiKey}", [
+                'contents' => [[
+                    'parts' => [['text' => $prompt]]
+                ]],
+                'generationConfig' => [
+                    'temperature' => 0.9,  // Higher creativity for personalized messages
+                    'maxOutputTokens' => 300,  // Short, concise messages
+                    'topP' => 0.95,
+                    'topK' => 40
+                ]
+            ]);
+        
+        if ($response->successful()) {
+            $responseData = $response->json();
+            $aiText = $responseData['candidates'][0]['content']['parts'][0]['text'] ?? null;
+            
+            if ($aiText) {
+                // Clean up the response
+                $aiText = trim($aiText);
+                // Remove any quotes if AI added them
+                $aiText = trim($aiText, '"\'');
+                
+                return $aiText;
+            }
+        }
+        
+        Log::warning('Gemini API call failed for recommendation description', [
+            'status' => $response->status(),
+            'question_id' => $question->question_ID
+        ]);
+        
+        return null;
+    }
+    
+    /**
+     * Get rule-based description (fallback when AI is unavailable)
+     * 
+     * @param Question $question
+     * @param array $weakAreas
+     * @param array $proficiencyLevels
+     * @param bool $isWeakLanguage
+     * @param bool $isWeakTopic
+     * @return string
+     */
+    private function getRuleBasedDescription(Question $question, array $weakAreas, array $proficiencyLevels, bool $isWeakLanguage, bool $isWeakTopic): string
+    {
+        $language = $question->language;
+        $topic = $question->chapter ?? 'programming concepts';
         
         if ($isWeakLanguage && $isWeakTopic) {
             return "Based on your recent attempts, we've noticed you could use more practice with {$topic} in {$language}. This challenge is designed to help you strengthen these skills and build confidence!";
