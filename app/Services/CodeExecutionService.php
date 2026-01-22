@@ -176,12 +176,6 @@ class CodeExecutionService
         return $preprocessor->process($inputData, $language);
     }
 
-    /**
-     * Build the driver script that combines:
-     * 1. Database input (as variables)
-     * 2. User's code (function definition)
-     * 3. Execution trigger (function call with print)
-     */
     private function buildDriverScript($userCode, $testInput, $language, $functionName = null, $parameters = [], $returnType = 'int')
     {
         $language = strtolower($language);
@@ -189,7 +183,6 @@ class CodeExecutionService
         
         switch ($language) {
             case 'c':
-                // Pass the returnType only to the C builder
                 return $this->buildCDriver($userCode, $inputData, $functionName, $parameters, $returnType);
             case 'python':
                 return $this->buildPythonDriver($userCode, $inputData, $functionName, $parameters);
@@ -456,18 +449,15 @@ class CodeExecutionService
         
         return $data;
     }
+    
 
     private function buildPythonDriver($userCode, $inputData, $functionName, $parameters)
     {
         $script = "# Driver Script\nimport json\n\n";
-        
-        // 1. Identify input keys by removing metadata
         $metadataKeys = ['test_case', 'input', 'output', 'expected'];
         $actualParams = array_filter(array_keys($inputData), function($k) use ($metadataKeys) {
             return !in_array($k, $metadataKeys);
         });
-
-        // 2. Handle numeric keys vs named variables
         $isNumericList = true;
         foreach ($actualParams as $key) {
             if (!is_numeric($key)) {

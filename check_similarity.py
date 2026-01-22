@@ -62,6 +62,7 @@ def main():
     # We add the student code to the list of documents
     documents = [student_code] + ai_codes
     
+    
     try:
         # TF-IDF converts code to numbers based on unique tokens
         # This captures the importance of rare keywords and patterns

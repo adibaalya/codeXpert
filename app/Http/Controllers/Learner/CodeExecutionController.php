@@ -194,13 +194,10 @@ class CodeExecutionController extends Controller
             'question_id' => 'required|exists:questions,question_ID',
             'language' => 'required|string'
         ]);
-
         $code = $request->solution;
         $language = $request->language;
         $question = Question::find($request->question_id);
         $learner = Auth::guard('learner')->user();
-
-        // Get ALL test cases from the database
         $testCases = is_string($question->input) ? json_decode($question->input, true) : $question->input;
         $expectedOutputs = is_string($question->expected_output) ? json_decode($question->expected_output, true) : $question->expected_output;
 
@@ -250,11 +247,9 @@ class CodeExecutionController extends Controller
                 $actualOutput = trim($result['output']);
                 $expectedOutputString = is_array($expectedOutput) ? json_encode($expectedOutput) : (string)$expectedOutput;
                 
-                // Clean expected output - remove markdown backticks
                 $expectedOutputString = str_replace('`', '', $expectedOutputString);
                 $expectedOutputString = trim($expectedOutputString);
                 
-                // Use smart comparison with normalization (handles spaces, quotes, newlines)
                 $comparisonResult = OutputNormalizer::smartCompare($actualOutput, $expectedOutputString);
                 $passed = $comparisonResult['match'];
                 

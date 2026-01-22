@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
+
 class AIPlagiarismDetectionService
 {
     /**
@@ -23,7 +24,7 @@ class AIPlagiarismDetectionService
     public function analyzeCode(string $code, string $language, int $questionId = null): array
     {
         try {
-            // Get ghost solutions directory for this question
+
             $ghostDir = $this->getGhostDirectory($language, $questionId);
             
             if (!File::isDirectory($ghostDir)) {
@@ -35,7 +36,6 @@ class AIPlagiarismDetectionService
                 return $this->getFallbackResult();
             }
             
-            // Check if there are any ghost files
             $ghostFiles = File::files($ghostDir);
             if (empty($ghostFiles)) {
                 Log::warning('No ghost solution files found in directory', [
@@ -44,7 +44,6 @@ class AIPlagiarismDetectionService
                 return $this->getFallbackResult();
             }
             
-            // Create temporary file for student code
             $tempFile = $this->createTempCodeFile($code, $language);
             
             if (!$tempFile) {
@@ -120,16 +119,12 @@ class AIPlagiarismDetectionService
     private function getGhostDirectory(string $language, ?int $questionId): string
     {
         $basePath = storage_path('app/ghost_solutions/' . strtolower($language));
-        
-        // If question-specific ghosts exist, use them
         if ($questionId) {
             $questionSpecificPath = $basePath . '/question_' . $questionId;
             if (File::isDirectory($questionSpecificPath)) {
                 return $questionSpecificPath;
             }
         }
-        
-        // Otherwise, use generic ghost solutions for the language
         return $basePath;
     }
     
@@ -139,23 +134,14 @@ class AIPlagiarismDetectionService
     private function createTempCodeFile(string $code, string $language): ?string
     {
         $tempDir = storage_path('app/temp_plagiarism');
-        
-        // Create temp directory if it doesn't exist
         if (!File::isDirectory($tempDir)) {
             File::makeDirectory($tempDir, 0755, true);
         }
-        
-        // Get file extension based on language
         $extension = $this->getFileExtension($language);
-        
-        // Create unique temp file
         $tempFile = $tempDir . '/student_' . uniqid() . '.' . $extension;
-        
-        // Write code to file
         if (File::put($tempFile, $code) !== false) {
             return $tempFile;
         }
-        
         return null;
     }
     
@@ -241,18 +227,12 @@ class AIPlagiarismDetectionService
      */
     private function runVectorSimilarityCheck(string $studentFile, string $ghostDir): ?array
     {
-        // Path to Python script
         $scriptPath = base_path('check_similarity.py');
-        
-        // Path to Python executable in virtual environment
         $pythonPath = base_path('venv_plagiarism/bin/python3');
-        
-        // Fallback to system Python if venv doesn't exist
         if (!file_exists($pythonPath)) {
             $pythonPath = 'python3';
         }
         
-        // Build command
         $command = sprintf(
             '%s %s %s %s 2>&1',
             escapeshellarg($pythonPath),

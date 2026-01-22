@@ -15,11 +15,8 @@ class CodeTemplateService
      */
     public function generateTemplate($language, $functionName = null, $parameters = [], $returnType = 'bool')
     {
-        // Use "solve" as default function name if not provided
         $functionName = !empty($functionName) ? $functionName : 'solve';
-        
         $lang = strtolower($language);
-
         switch ($lang) {
             case 'php':
                 return $this->generatePHPTemplate($functionName, $parameters, $returnType);

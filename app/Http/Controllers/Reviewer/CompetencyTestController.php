@@ -77,7 +77,7 @@ class CompetencyTestController extends Controller
                 ->where('status', 'Approved')
                 ->count();
             
-            // Check if requirements are met (updated to 3 MCQ, 3 Evaluation, 1 Code Solution)
+            
             $isSufficient = ($mcqCount >= 3 && $evaluationCount >= 3 && $codeSolutionCount >= 1);
             
             $iconMap = [
@@ -219,7 +219,7 @@ class CompetencyTestController extends Controller
         // Merge MCQ and Evaluation questions for the MCQ test phase (total 6 questions)
         $allMcqPhaseQuestions = $mcqQuestions->merge($evaluationQuestions);
 
-        // Store in session
+        
         session([
             'test_language' => $language,
             'test_started_at' => now()->timestamp, // Store as Unix timestamp
@@ -770,15 +770,10 @@ class CompetencyTestController extends Controller
         // Calculate average plagiarism score (100 = no plagiarism, 0 = high plagiarism)
         $avgPlagiarismScore = $plagiarismCount > 0 ? round($totalPlagiarismScore / $plagiarismCount, 2) : 100;
 
-        // Total: 60 + 10 = 70 points max, scale to 100
         $totalScore = (($mcqScore + $codeScore) / 70) * 100;
-
-        // Determine pass/fail status
-        // Must pass BOTH correctness (50%+) AND plagiarism (60%+) checks
         $levelAchieved = null;
         $passed = false;
-        $plagiarismPassed = $avgPlagiarismScore >= 60; // 60% threshold means low AI probability
-
+        $plagiarismPassed = $avgPlagiarismScore >= 60;
         if ($totalScore >= 90 && $plagiarismPassed) {
             $levelAchieved = 'all';
             $passed = true;

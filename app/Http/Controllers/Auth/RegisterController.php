@@ -25,14 +25,13 @@ class RegisterController extends Controller
      */
     public function register(Request $request)
     {
-        $request->validate([
+        $request->validate([ 
             'name' => 'required|string|max:50',
             'email' => 'required|email|max:100',
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|in:learner,reviewer',
         ]);
 
-        // Check if email already exists in either table
         $learnerExists = Learner::where('email', $request->email)->exists();
         $reviewerExists = Reviewer::where('email', $request->email)->exists();
 
@@ -42,7 +41,6 @@ class RegisterController extends Controller
             ]);
         }
 
-        // Create user in the appropriate table based on role
         if ($request->role === 'learner') {
             $user = Learner::create([
                 'username' => $request->name,

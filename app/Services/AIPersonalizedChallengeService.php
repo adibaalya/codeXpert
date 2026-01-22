@@ -23,34 +23,23 @@ class AIPersonalizedChallengeService
     public function generatePersonalizedChallenge(Learner $learner)
     {
         $cacheKey = $this->getCacheKey($learner->learner_ID);
-        
-        // Check if we have a cached challenge for today
         $cachedChallenge = Cache::get($cacheKey);
-        
         if ($cachedChallenge) {
-            // Validate that the cached question still exists and is approved
             if (isset($cachedChallenge['question_id']) && $cachedChallenge['question_id']) {
                 $questionExists = Question::where('question_ID', $cachedChallenge['question_id'])
                     ->where('status', 'Approved')
                     ->exists();
                 
                 if (!$questionExists) {
-                    // Question no longer exists or not approved, clear cache and generate new
                     Cache::forget($cacheKey);
                     $cachedChallenge = null;
                 }
             }
-            
-            // If still valid, check if completed
             if ($cachedChallenge) {
                 $isCompleted = $this->isChallengeCompleted($learner->learner_ID, $cachedChallenge['question_id']);
-                
                 if (!$isCompleted) {
-                    // Return the cached challenge if not completed
                     return $cachedChallenge;
                 }
-                
-                // If completed, clear the cache and generate a new one
                 Cache::forget($cacheKey);
             }
         }
@@ -173,7 +162,6 @@ class AIPersonalizedChallengeService
         // Calculate average accuracy
         $weakAreas['averageAccuracy'] = $recentAttempts->avg('accuracyScore');
         
-        // Analyze performance by language
         $languagePerformance = $recentAttempts->groupBy('language')->map(function ($attempts) {
             return [
                 'count' => $attempts->count(),
@@ -227,8 +215,7 @@ class AIPersonalizedChallengeService
             $xp = $proficiency->XP ?? 0;
             
             // Determine proficiency level based on XP
-            if ($xp < 100) {
-                $level = 'Beginner';
+            if ($xp < 100) {$level = 'Beginner';
             } elseif ($xp < 500) {
                 $level = 'Intermediate';
             } else {
@@ -255,8 +242,8 @@ class AIPersonalizedChallengeService
     {
         $geminiApiKey = env('GEMINI_API_KEY');
         
-        // Try AI-powered selection if API key is available
-        if ($geminiApiKey) {
+        // Try AI-powered selection if API key is available and not empty
+        if ($geminiApiKey && !empty(trim($geminiApiKey))) {
             try {
                 $aiSelectedQuestion = $this->selectOptimalQuestionWithAI($learner, $proficiencyLevels, $weakAreas);
                 
@@ -268,14 +255,26 @@ class AIPersonalizedChallengeService
                     ]);
                     return $aiSelectedQuestion;
                 }
+                
+                Log::info('AI question selection returned null, falling back to rule-based', [
+                    'learner_id' => $learner->learner_ID
+                ]);
             } catch (\Exception $e) {
                 Log::warning('AI question selection failed, falling back to rule-based', [
+                    'learner_id' => $learner->learner_ID,
                     'error' => $e->getMessage()
                 ]);
             }
+        } else {
+            Log::info('No Gemini API key configured, using rule-based selection', [
+                'learner_id' => $learner->learner_ID
+            ]);
         }
         
         // Fallback to rule-based selection
+        Log::info('Using rule-based question selection', [
+            'learner_id' => $learner->learner_ID
+        ]);
         return $this->selectOptimalQuestionRuleBased($learner, $proficiencyLevels, $weakAreas);
     }
     
@@ -334,7 +333,6 @@ class AIPersonalizedChallengeService
             ->where('questionCategory', 'learnerPractice')
             ->whereNotIn('question_ID', $recentlyAttemptedIds);
         
-        // Priority 1: Questions addressing weak areas (if any)
         if (!empty($weakAreas['languages']) || !empty($weakAreas['strugglingTopics'])) {
             $weakCandidates = $query->clone()
                 ->when(!empty($weakAreas['languages']), function($q) use ($weakAreas) {
@@ -395,7 +393,7 @@ class AIPersonalizedChallengeService
         }
         
         if (empty($proficiencyText)) {
-            $proficiencyText = "- No proficiency data (new learner)";
+            $proficiencyText = "- New learner (no attempt history yet). Recommend beginner-friendly questions.";
         }
         
         // Format candidate questions
@@ -408,7 +406,6 @@ class AIPersonalizedChallengeService
             $candidatesText .= "   Difficulty: {$question->level}\n\n";
         }
         
-        // Build AI prompt for ranking
         $prompt = <<<PROMPT
 You are an expert learning coach for CodeXpert. Your task is to select the BEST coding question for this learner from the candidates below.
 
@@ -445,8 +442,8 @@ PROMPT;
                     'parts' => [['text' => $prompt]]
                 ]],
                 'generationConfig' => [
-                    'temperature' => 0.3,  // Lower temperature for more deterministic selection
-                    'maxOutputTokens' => 50,  // Only need the question ID
+                    'temperature' => 0.3,
+                    'maxOutputTokens' => 100,  // Increased from 50 to ensure complete response
                     'topP' => 0.8,
                     'topK' => 20
                 ]
@@ -477,7 +474,8 @@ PROMPT;
                     } else {
                         Log::warning('AI selected invalid question ID', [
                             'selected_id' => $selectedQuestionId,
-                            'ai_response' => $aiText
+                            'ai_response' => $aiText,
+                            'available_ids' => $candidates->pluck('question_ID')->toArray()
                         ]);
                     }
                 }
@@ -486,7 +484,8 @@ PROMPT;
         
         Log::warning('AI ranking failed to return valid question ID', [
             'response_status' => $response->status(),
-            'candidates_count' => $candidates->count()
+            'candidates_count' => $candidates->count(),
+            'response_body' => $response->body()
         ]);
         
         return null;
@@ -655,7 +654,8 @@ PROMPT;
         // ===== AI-POWERED DESCRIPTION GENERATION =====
         $geminiApiKey = env('GEMINI_API_KEY');
         
-        if ($geminiApiKey) {
+        // Only attempt AI if API key is configured and not empty
+        if ($geminiApiKey && !empty(trim($geminiApiKey))) {
             try {
                 $aiDescription = $this->generateAIDescription(
                     $question, 
@@ -666,20 +666,34 @@ PROMPT;
                 );
                 
                 if ($aiDescription) {
-                    Log::info('AI-generated personalized description', [
+                    Log::info('AI-generated personalized description successfully', [
                         'question_id' => $question->question_ID,
                         'description_length' => strlen($aiDescription)
                     ]);
                     return $aiDescription;
                 }
+                
+                Log::info('AI description returned null, using rule-based fallback', [
+                    'question_id' => $question->question_ID
+                ]);
             } catch (\Exception $e) {
-                Log::error('AI description generation failed, using fallback', [
+                Log::warning('AI description generation failed, using rule-based fallback', [
+                    'question_id' => $question->question_ID,
                     'error' => $e->getMessage()
                 ]);
             }
+        } else {
+            Log::info('No Gemini API key configured, using rule-based description', [
+                'question_id' => $question->question_ID
+            ]);
         }
         
         // ===== FALLBACK: RULE-BASED DESCRIPTION =====
+        Log::info('Generating rule-based description', [
+            'question_id' => $question->question_ID,
+            'language' => $language,
+            'topic' => $topic
+        ]);
         return $this->getRuleBasedDescription($question, $weakAreas, $proficiencyLevels, $isWeakLanguage, $isWeakTopic);
     }
     
@@ -732,7 +746,8 @@ PROMPT;
         
         // Build AI prompt
         $prompt = <<<PROMPT
-You are a personalized learning coach for CodeXpert, an online coding platform. Generate a motivational and specific 2-3 sentence message recommending a coding challenge to a learner.
+You are a personalized learning coach for CodeXpert, an online coding platform. Generate a motivational 
+and specific 2-3 sentence message recommending a coding challenge to a learner.
 
 **Learner Profile:**
 - Weak Languages: {$weakLanguagesText}
@@ -757,6 +772,7 @@ You are a personalized learning coach for CodeXpert, an online coding platform. 
 4. Keep it concise (2-3 sentences maximum)
 5. Make them feel motivated and excited to try it
 6. Do NOT use generic phrases like "Great for learning!" - be personal and specific
+7. IMPORTANT: Write complete sentences only. Do not truncate or leave sentences unfinished.
 
 Generate ONLY the recommendation message (no greetings, no signatures, no extra formatting).
 PROMPT;
@@ -768,15 +784,33 @@ PROMPT;
                     'parts' => [['text' => $prompt]]
                 ]],
                 'generationConfig' => [
-                    'temperature' => 0.9,  // Higher creativity for personalized messages
-                    'maxOutputTokens' => 300,  // Short, concise messages
-                    'topP' => 0.95,
-                    'topK' => 40
+                    'temperature' => 0.7,  // Balanced creativity
+                    'maxOutputTokens' => 250,  // Increased from 150 to prevent truncation
+                    'topP' => 0.9,
+                    'topK' => 40,
+                    'stopSequences' => []
+                ],
+                'safetySettings' => [
+                    ['category' => 'HARM_CATEGORY_HARASSMENT', 'threshold' => 'BLOCK_NONE'],
+                    ['category' => 'HARM_CATEGORY_HATE_SPEECH', 'threshold' => 'BLOCK_NONE'],
+                    ['category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_NONE'],
+                    ['category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_NONE']
                 ]
             ]);
         
         if ($response->successful()) {
             $responseData = $response->json();
+            
+            // Check for safety filter blocks
+            if (isset($responseData['candidates'][0]['finishReason']) && 
+                $responseData['candidates'][0]['finishReason'] === 'SAFETY') {
+                Log::warning('Gemini response blocked by safety filter', [
+                    'question_id' => $question->question_ID,
+                    'finish_reason' => $responseData['candidates'][0]['finishReason']
+                ]);
+                return null;
+            }
+            
             $aiText = $responseData['candidates'][0]['content']['parts'][0]['text'] ?? null;
             
             if ($aiText) {
@@ -785,13 +819,29 @@ PROMPT;
                 // Remove any quotes if AI added them
                 $aiText = trim($aiText, '"\'');
                 
+                // Check if response is complete (should end with punctuation)
+                if (!preg_match('/[.!?]$/', $aiText)) {
+                    Log::warning('AI description appears incomplete', [
+                        'question_id' => $question->question_ID,
+                        'description' => $aiText,
+                        'finish_reason' => $responseData['candidates'][0]['finishReason'] ?? 'unknown'
+                    ]);
+                    return null; // Fall back to rule-based
+                }
+                
+                Log::info('AI-generated personalized description successfully', [
+                    'question_id' => $question->question_ID,
+                    'description_length' => strlen($aiText)
+                ]);
+                
                 return $aiText;
             }
         }
         
         Log::warning('Gemini API call failed for recommendation description', [
             'status' => $response->status(),
-            'question_id' => $question->question_ID
+            'question_id' => $question->question_ID,
+            'response_body' => $response->body()
         ]);
         
         return null;

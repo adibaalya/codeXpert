@@ -17,12 +17,10 @@ class AchievementService
     // --- REVIEWER LOGIC ---
     public function checkReviewerBadges($reviewer)
     {
-        // 1. Certified Reviewer (Passed competency test)
         if ($reviewer->isQualified) {
             $this->award($reviewer, 'certified_reviewer');
         }
 
-        // 2. First Question Reviewed
         if ($reviewer->total_reviews >= 1) {
             $this->award($reviewer, 'first_review');
         }
@@ -52,7 +50,6 @@ class AchievementService
             $this->award($reviewer, 'creative_author');
         }
 
-        // 8. Trusted Reviewer (90% Approval Rate, min 10 reviews)
         if ($reviewer->total_reviews >= 10) {
             $rate = $reviewer->clean_reviews_count / $reviewer->total_reviews;
             if ($rate >= 0.90) {

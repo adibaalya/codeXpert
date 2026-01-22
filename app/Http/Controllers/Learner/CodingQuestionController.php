@@ -17,8 +17,7 @@ class CodingQuestionController extends Controller
     {
         // Get the authenticated learner
         $learner = auth()->guard('learner')->user();
-        
-        // Fetch the question from database
+
         $question = Question::where('question_ID', $questionId)
             ->where('questionType', 'Code_Solution')
             ->where('status', 'Approved')

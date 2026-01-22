@@ -124,13 +124,11 @@ class ReviewerDashboardController extends Controller
     {
         $reviewer = Auth::guard('reviewer')->user();
         
-        // Get languages the reviewer is qualified for (passed competency tests)
         $qualifiedLanguages = \App\Models\CompetencyTestResult::where('reviewer_ID', $reviewer->reviewer_ID)
             ->where('passed', true)
             ->pluck('language')
             ->toArray();
-        
-        // If no qualifications, return empty
+            
         if (empty($qualifiedLanguages)) {
             $pendingQuestions = collect();
             $currentQuestion = null;
@@ -194,7 +192,6 @@ class ReviewerDashboardController extends Controller
     {
         $reviewer = Auth::guard('reviewer')->user();
         
-        // Get all approved questions with questionCategory='learnerPractice' only
         $questions = Question::where('status', 'Approved')
             ->where('questionCategory', 'learnerPractice')
             ->with(['reviewer' => function($query) {
@@ -358,11 +355,9 @@ class ReviewerDashboardController extends Controller
             ], 403);
         }
         
-        // Update question status based on the overall grade (>=70% = approved)
         $question->status = $validated['overall_grade'] >= 70 ? 'Approved' : 'Rejected';
         $question->reviewer_ID = $reviewer->reviewer_ID;
         
-        // Store grading details in a JSON column or separate fields
         $question->grading_details = json_encode([
             'quality_score' => $validated['quality_score'],
             'clarity_score' => $validated['clarity_score'],
@@ -373,7 +368,6 @@ class ReviewerDashboardController extends Controller
             'reviewed_at' => now(),
             'reviewed_by' => $reviewer->username
         ]);
-        
         $question->save();
         
         // ============================================================
@@ -458,7 +452,6 @@ class ReviewerDashboardController extends Controller
         // ============================================================
         $hasChanges = false;
         
-        // Check if description changed
         if (isset($validated['description'])) {
             $cleanDescription = strip_tags(html_entity_decode($validated['description']));
             if ($cleanDescription !== $question->description) {

@@ -36,7 +36,6 @@ class LoginController extends Controller
         $remember = $request->boolean('remember');
         $role = $request->role;
 
-        // Attempt login based on role
         if ($role === 'learner') {
             $guard = 'learner';
         } else {
@@ -49,7 +48,6 @@ class LoginController extends Controller
             // Clear any intended URL from session to force our redirect
             $request->session()->forget('url.intended');
             
-            // Redirect based on role and qualification status
             if ($role === 'reviewer') {
                 $reviewer = Auth::guard('reviewer')->user();
                 
@@ -80,12 +78,38 @@ class LoginController extends Controller
      */
     public function logout(Request $request)
     {
-        // Logout from both guards
+        // Determine which guard the user is logged in with
+        $guardType = null;
+        $userId = null;
+        
+        if (Auth::guard('learner')->check()) {
+            $guardType = 'learner';
+            $userId = Auth::guard('learner')->id();
+        } elseif (Auth::guard('reviewer')->check()) {
+            $guardType = 'reviewer';
+            $userId = Auth::guard('reviewer')->id();
+        }
+        
+        // Log the logout attempt
+        if ($guardType) {
+            \Log::info('User Logout', [
+                'guard' => $guardType,
+                'user_id' => $userId,
+                'ip' => $request->ip()
+            ]);
+        }
+        
+        // Logout from both guards (just to be safe)
         Auth::guard('learner')->logout();
         Auth::guard('reviewer')->logout();
         
+        // Invalidate the session
         $request->session()->invalidate();
+        
+        // Regenerate CSRF token
         $request->session()->regenerateToken();
-        return redirect('/');
+        
+        // Redirect to login page with success message
+        return redirect('/login')->with('status', 'You have been successfully logged out.');
     }
 }

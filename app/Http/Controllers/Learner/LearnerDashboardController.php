@@ -294,7 +294,6 @@ class LearnerDashboardController extends Controller
             ->orderBy('username', 'asc')
             ->get();
         
-        // Calculate positions and ranks with ties
         $position = 1;
         $rank = 1; // Actual rank for styling (1st, 2nd, 3rd)
         $previousXP = null;

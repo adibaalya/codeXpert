@@ -203,7 +203,6 @@ PROMPT;
             'suggestions' => null
         ];
         
-        // Try to parse sections using headers
         $patterns = [
             'correctness' => '/##\s*Correctness\s*\n(.*?)(?=##|$)/si',
             'style' => '/##\s*Style\s*&?\s*Readability\s*\n(.*?)(?=##|$)/si',
